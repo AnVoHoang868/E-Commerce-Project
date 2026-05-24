@@ -8,20 +8,20 @@ const Hero = () => {
         {
             id: 1,
             image: assets.banner_img,
-            title: "Latest Arrivals",
-            subTitle: "OUR BESTSELLERS"
+            title: "Hàng mới về",
+            subTitle: "BÁN CHẠY NHẤT"
         },
         {
             id: 2,
             image: assets.banner_img2,
-            title: "New Season Style",
-            subTitle: "TRENDING NOW"
+            title: "Phong cách mùa mới",
+            subTitle: "ĐANG THỊNH HÀNH"
         },
         {
             id: 3,
             image: assets.banner_img3,
-            title: "Premium Quality",
-            subTitle: "BEST WEAR"
+            title: "Chất lượng cao",
+            subTitle: "LỰA CHỌN TỐT NHẤT"
         }
     ];
 
@@ -71,7 +71,7 @@ const Hero = () => {
                                     className='group/btn flex items-center gap-2 mt-5 cursor-pointer w-fit'
                                 >
                                     <button className='bg-[#414141] text-white px-8 py-3 text-sm font-bold uppercase tracking-widest hover:bg-black transition-all duration-300 transform rounded-sm active:scale-95'>
-                                        SHOP NOW
+                                        MUA NGAY
                                     </button>
                                 </div>
                             </div>

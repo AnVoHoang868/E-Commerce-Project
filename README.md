@@ -1,5 +1,46 @@
 # React + TypeScript + Vite
 
+## Chạy frontend
+
+1. Cài dependencies:
+
+```bash
+npm install
+```
+
+2. Tạo file `.env` từ `.env.example` và trỏ tới backend:
+
+```bash
+cp .env.example .env
+```
+
+Ví dụ:
+
+```env
+VITE_BACKEND_URL=https://tmdt.dungcony.io.vn
+```
+
+3. Chạy dev server:
+
+```bash
+npm run dev
+```
+
+Frontend mặc định chạy tại `http://localhost:5173/`.
+
+## API backend đang dùng
+
+Frontend hiện gọi các endpoint sau nếu `VITE_BACKEND_URL` được cấu hình:
+
+- `GET /v1/api/public/product/get-all`
+- `POST /v1/api/public/auth/login`
+- `POST /v1/api/public/auth/regis`
+- `GET /v1/api/user/cart`
+- `POST /v1/api/user/cart/add`
+- `PUT /v1/api/user/cart/update-quantity`
+
+Nếu backend chưa chạy hoặc chưa cấu hình `.env`, app vẫn dùng dữ liệu sản phẩm mẫu trong frontend.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

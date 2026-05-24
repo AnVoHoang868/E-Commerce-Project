@@ -1,16 +1,17 @@
 import { useContext, useState } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '../lib/format';
 
 interface ProductItemProps {
     id: string;
     image: string[];
     name: string;
     price: number;
-    sizes?: string[];
+    sizes: string[];
 }
 
-const ProductItem = ({ id, image, name, price, sizes = ['S', 'M', 'L', 'XL'] }: ProductItemProps) => {
+const ProductItem = ({ id, image, name, price, sizes }: ProductItemProps) => {
 
     const context = useContext(ShopContext);
     const [selectedSize, setSelectedSize] = useState('');
@@ -19,7 +20,7 @@ const ProductItem = ({ id, image, name, price, sizes = ['S', 'M', 'L', 'XL'] }: 
         return null;
     }
 
-    const { currency, addToCart } = context;
+    const { addToCart } = context;
 
     return (
         <div className='group relative text-gray-700 cursor-pointer'>
@@ -29,7 +30,9 @@ const ProductItem = ({ id, image, name, price, sizes = ['S', 'M', 'L', 'XL'] }: 
 
                     {/* Size Overlay on Hover */}
                     <div className='absolute bottom-0 left-0 right-0 bg-white/90 translate-y-full group-hover:translate-y-0 transition-transform duration-300 p-3'>
-                        <p className='text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-tighter'>Quick Add / Sizes:</p>
+                        <p className='text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-tighter'>
+                            {sizes.length > 0 ? 'Chọn nhanh / Kích cỡ:' : 'Hết hàng'}
+                        </p>
                         <div className='flex flex-wrap gap-1'>
                             {sizes.map((size) => (
                                 <span
@@ -47,15 +50,16 @@ const ProductItem = ({ id, image, name, price, sizes = ['S', 'M', 'L', 'XL'] }: 
                     </div>
                 </div>
                 <p className='pt-3 pb-1 text-sm font-medium'>{name}</p>
-                <p className='text-sm font-bold text-black'>{currency}{price}</p>
+                <p className='text-sm font-bold text-black'>{formatCurrency(price)}</p>
             </Link>
 
             {/* Add to Cart Button (Sporty Style) */}
             <button
                 onClick={() => addToCart(id, selectedSize)}
-                className='w-full mt-2 bg-black text-white py-2 text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-sm'
+                disabled={sizes.length === 0}
+                className='w-full mt-2 bg-black text-white py-2 text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-sm disabled:bg-gray-300 disabled:cursor-not-allowed'
             >
-                Add To Cart
+                {sizes.length > 0 ? 'Thêm vào giỏ' : 'Tạm hết hàng'}
             </button>
         </div>
     )

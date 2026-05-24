@@ -1,34 +1,34 @@
 import { useContext } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import Title from './Title';
+import { formatCurrency } from '../lib/format';
 
 const CartTotal = () => {
 
     const context = useContext(ShopContext);
-    const currency = context?.currency || '$';
     const delivery_fee = context?.delivery_fee || 0;
     const getCartAmount = context?.getCartAmount || (() => 0);
 
     return (
         <div className='w-full'>
             <div className='text-2xl'>
-                <Title text1={'CART'} text2={'TOTALS'} />
+                <Title text1={'TỔNG'} text2={'GIỎ HÀNG'} />
             </div>
 
             <div className='flex flex-col gap-2 mt-2 text-sm'>
                 <div className='flex justify-between'>
-                    <p>Subtotal</p>
-                    <p>{currency} {getCartAmount()}.00</p>
+                    <p>Tạm tính</p>
+                    <p>{formatCurrency(getCartAmount())}</p>
                 </div>
                 <hr />
                 <div className='flex justify-between'>
-                    <p>Shipping Fee</p>
-                    <p>{currency} {delivery_fee}.00</p>
+                    <p>Phí vận chuyển</p>
+                    <p>{formatCurrency(delivery_fee)}</p>
                 </div>
                 <hr />
                 <div className='flex justify-between'>
-                    <b>Total</b>
-                    <b>{currency} {getCartAmount() === 0 ? 0 : getCartAmount() + delivery_fee}.00</b>
+                    <b>Tổng cộng</b>
+                    <b>{formatCurrency(getCartAmount() === 0 ? 0 : getCartAmount() + delivery_fee)}</b>
                 </div>
             </div>
         </div>

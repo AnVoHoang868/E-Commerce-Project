@@ -33,7 +33,7 @@ const BestSeller = () => {
         <div className='my-10'>
             {/* Header + Navigation Buttons */}
             <div className='flex justify-between items-center py-8 text-3xl'>
-                <Title text1={'BEST'} text2={'SELLERS'} />
+                <Title text1={'BÁN'} text2={'CHẠY'} />
 
                 <div className='flex gap-2'>
                     <button

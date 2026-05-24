@@ -1,10 +1,20 @@
 
-import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
 
 import Home from './pages/Home';
+import About from './pages/About';
+import Contact from './pages/Contact';
+import Login from './pages/Login';
+import Orders from './pages/Orders';
+import PlaceOrder from './pages/PlaceOrder';
+import Product from './pages/Product';
+import Cart from './pages/Cart';
+import Collection from './pages/Collection';
+import TrackOrder from './pages/TrackOrder';
+import Profile from './pages/Profile';
+import Admin from './pages/Admin';
 
 import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
@@ -17,6 +27,17 @@ const App = () => {
       <SearchBar />
       <Routes>
         <Route path='/' element={<Home />} />
+        <Route path='/about' element={<About />} />
+        <Route path='/contact' element={<Contact />} />
+        <Route path='/collection' element={<Collection />} />
+        <Route path='/cart' element={<Cart />} />
+        <Route path='/login' element={<Login />} />
+        <Route path='/profile' element={<Profile />} />
+        <Route path='/orders' element={<Orders />} />
+        <Route path='/orders/:orderCode' element={<TrackOrder />} />
+        <Route path='/place-order' element={<PlaceOrder />} />
+        <Route path='/product/:productId' element={<Product />} />
+        <Route path='/admin' element={<Admin />} />
       </Routes>
       <Footer />
     </div>

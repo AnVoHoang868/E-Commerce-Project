@@ -30,15 +30,15 @@ const SearchBar = () => {
                     onChange={(e) => setSearch(e.target.value)}
                     className="flex-1 outline-none bg-inherit text-sm"
                     type="text"
-                    placeholder="Search"
+                    placeholder="Tìm kiếm"
                 />
-                <img className="w-4" src={assets.search_icon} alt="Search" />
+                <img className="w-4" src={assets.search_icon} alt="Tìm kiếm" />
             </div>
             <img
                 onClick={() => setShowSearch(false)}
                 className="inline w-3 cursor-pointer"
                 src={assets.cross_icon}
-                alt="Close"
+                alt="Đóng"
             />
         </div>
     ) : null;

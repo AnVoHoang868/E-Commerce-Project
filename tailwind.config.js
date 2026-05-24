@@ -7,8 +7,9 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                outfit: ['Outfit', 'sans-serif'],
-                prata: ['Prata', 'serif'],
+                sans: ['Be Vietnam Pro', 'system-ui', 'sans-serif'],
+                outfit: ['Be Vietnam Pro', 'system-ui', 'sans-serif'],
+                prata: ['Be Vietnam Pro', 'system-ui', 'sans-serif'],
             }
         },
     },

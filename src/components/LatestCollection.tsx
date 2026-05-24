@@ -32,7 +32,7 @@ const LatestCollection = () => {
     return (
         <div className='my-10'>
             <div className='flex justify-between items-center py-8 text-3xl'>
-                <Title text1={'LATEST'} text2={'COLLECTIONS'} />
+                <Title text1={'SẢN PHẨM'} text2={'MỚI NHẤT'} />
 
                 {/* Navigation Buttons */}
                 <div className='flex gap-2'>

@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface TitleProps {
     text1: string;
     text2: string;

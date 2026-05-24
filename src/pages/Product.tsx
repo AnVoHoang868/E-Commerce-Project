@@ -1,16 +1,17 @@
 import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ShopContext } from '../context/ShopContext';
-import { assets, Product as ProductType } from '../assets/assets';
+import { assets } from '../assets/assets';
+import type { Product as ProductType } from '../types/shop';
 import RelatedProducts from '../components/RelatedProducts'; // RelatedProducts is already converted
+import { formatCurrency } from '../lib/format';
 
 const Product = () => {
     const params = useParams(); // useParams returns a string based on route definitions
     const productId = params.productId;
 
     const context = useContext(ShopContext);
-    const products = context?.products || [];
-    const currency = context?.currency || '$';
+    const products = (context?.products || []) as ProductType[];
     const addToCart = context?.addToCart; // Safe access
 
     const [productData, setProductData] = useState<ProductType | null>(null);
@@ -67,36 +68,39 @@ const Product = () => {
                         <p className="pl-2">122</p>
                     </div>
                     <p className="mt-5 text-3xl font-medium">
-                        {currency}
-                        {productData.price}
+                        {formatCurrency(productData.price)}
                     </p>
                     <p className="mt-5 text-gray-500">{productData.description}</p>
                     <div className="flex flex-col gap-4 my-8">
-                        <p>Select Size</p>
+                        <p>Chọn size</p>
                         <div className="flex gap-2">
-                            {productData.sizes.map((item, index) => (
-                                <button
-                                    onClick={() => setSize(item)}
-                                    key={index}
-                                    className={`bg-gray-100 py-2 px-4 border ${item === size ? 'border-orange-500' : ''
-                                        }`}
-                                >
-                                    {item}
-                                </button>
-                            ))}
+                            {productData.sizes.length > 0
+                                ? productData.sizes.map((item, index) => (
+                                    <button
+                                        onClick={() => setSize(item)}
+                                        key={index}
+                                        className={`bg-gray-100 py-2 px-4 border ${item === size ? 'border-orange-500' : ''
+                                            }`}
+                                    >
+                                        {item}
+                                    </button>
+                                ))
+                                : <p className="text-sm text-gray-500">Hết hàng</p>
+                            }
                         </div>
                     </div>
                     <button
                         onClick={() => addToCart && addToCart(productData._id, size)} // Safe call
-                        className="bg-black text-white px-8 py-3 text-sm active:bg-gray-700"
+                        disabled={productData.sizes.length === 0}
+                        className="bg-black text-white px-8 py-3 text-sm active:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                     >
-                        ADD TO CART
+                        {productData.sizes.length > 0 ? 'THÊM VÀO GIỎ' : 'TẠM HẾT HÀNG'}
                     </button>
                     <hr className="mt-8 sm:w-4/5" />
                     <div className="text-sm text-gray-500 mt-5 flex flex-col gap-1">
-                        <p>100% Original product.</p>
-                        <p>Cash on delivery is available on this product.</p>
-                        <p>Easy return & exchange policy within 7 days.</p>
+                        <p>Sản phẩm chính hãng 100%.</p>
+                        <p>Hỗ trợ thanh toán khi nhận hàng.</p>
+                        <p>Dễ dàng đổi trả trong vòng 7 ngày.</p>
                     </div>
                 </div>
             </div>
@@ -104,24 +108,16 @@ const Product = () => {
             {/* Description and Reviews */}
             <div className="mt-20">
                 <div className="flex">
-                    <b className="border px-5 py-3 text-sm">Description</b>
-                    <p className="border px-5 py-3 text-sm">Reviews (122)</p>
+                    <b className="border px-5 py-3 text-sm">Mô tả</b>
+                    <p className="border px-5 py-3 text-sm">Đánh giá (122)</p>
                 </div>
                 <div className="flex flex-col gap-4 border px-6 py-6 text-sm text-gray-500">
                     <p>
-                        An e-commerce website is an online platform that facilitates the
-                        buying and selling of products or services over the internet. It
-                        serves as a virtual marketplace where businesses and individuals can
-                        showcase their products, interact with customers, and conduct
-                        transactions without the need for a physical presence. E-commerce
-                        websites have gained immense popularity due to their convenience,
-                        accessibility, and the global reach they offer.
+                        Sản phẩm được chọn lọc nhằm mang lại trải nghiệm mua sắm tiện lợi,
+                        dễ phối đồ và phù hợp với nhu cầu sử dụng hằng ngày.
                     </p>
                     <p>
-                        E-commerce websites typically display products or services along
-                        with detailed descriptions, images, prices, and any available
-                        variations (e.g., sizes, colors). Each product usually has its own
-                        dedicated page with relevant information.
+                        Vui lòng chọn đúng size trước khi thêm vào giỏ hàng để hệ thống kiểm tra tồn kho chính xác.
                     </p>
                 </div>
             </div>
