@@ -72,6 +72,7 @@ const toInstant = (value: string) => (value ? new Date(value).toISOString() : un
 const Admin = () => {
     const context = useContext(ShopContext);
     const token = context?.token as string;
+    const isAdmin = Boolean(context?.isAdmin);
     const products = (context?.products || []) as Product[];
 
     const [activeTab, setActiveTab] = useState<AdminTab>('orders');
@@ -245,6 +246,10 @@ const Admin = () => {
         return <Navigate to='/login' replace />;
     }
 
+    if (!isAdmin) {
+        return <Navigate to='/' replace />;
+    }
+
     const receiver = orderDetail?.reciever || orderDetail?.receiver;
     const receiverAddress = [
         receiver?.addr?.detail,
@@ -261,7 +266,6 @@ const Admin = () => {
                     <div className='text-2xl'>
                         <Title text1='QUẢN TRỊ' text2='HỆ THỐNG' />
                     </div>
-                    <p className='mt-2 text-sm text-gray-500'>Theo dõi đơn hàng và quản lý voucher từ các API admin.</p>
                 </div>
 
                 <div className='grid grid-cols-2 gap-2 border bg-white p-1'>

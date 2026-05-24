@@ -5,9 +5,26 @@ import { useNavigate } from "react-router-dom";
 import { assets } from "../assets/assets";
 import { apiBaseUrl, apiRequest } from "../lib/api";
 import { mapBackendCart, mapProductDetail, mapProductSummary } from "../lib/productMapper";
-import type { ApiResponse, BackendCart, BackendProductDetail, BackendProductSummary, CartItems, PageResponse, Product, UserProfile, UserProfileUpdatePayload } from "../types/shop";
+import type { AccountRole, ApiResponse, BackendCart, BackendProductDetail, BackendProductSummary, CartItems, PageResponse, Product, UserProfile, UserProfileUpdatePayload } from "../types/shop";
 
 export const ShopContext = createContext<any>(null);
+
+const getRoleFromToken = (authToken: string): AccountRole | null => {
+    try {
+        const payload = authToken.split('.')[1];
+        if (!payload) return null;
+
+        const normalizedPayload = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const paddedPayload = normalizedPayload.padEnd(normalizedPayload.length + (4 - normalizedPayload.length % 4) % 4, '=');
+        const decodedPayload = JSON.parse(atob(paddedPayload));
+        const role = decodedPayload?.role;
+
+        return role === 'ADMIN' || role === 'CUSTOMER' || role === 'EMPLOYEE' ? role : null;
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+};
 
 const fallbackProducts: Product[] = [
     {
@@ -117,6 +134,7 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
     const [cartItems, setCartItems] = useState<CartItems>({});
     const [products, setProducts] = useState<Product[]>(fallbackProducts);
     const [token, setToken] = useState(localStorage.getItem('token') || '');
+    const [accountRole, setAccountRole] = useState<AccountRole | null>(() => getRoleFromToken(localStorage.getItem('token') || ''));
     const [user, setUser] = useState<UserProfile | null>(null);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const navigate = useNavigate();
@@ -212,6 +230,12 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         }
 
         return data;
+    }
+
+    const refreshCart = async () => {
+        if (token) {
+            await getUserCart(token);
+        }
     }
 
     const addToCart = async (itemId: string, size: string) => {
@@ -347,10 +371,12 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
     useEffect(() => {
         if (token) {
             localStorage.setItem('token', token);
+            setAccountRole(getRoleFromToken(token));
             getUserProfile(token);
             getUserCart(token);
         } else {
             localStorage.removeItem('token');
+            setAccountRole(null);
             setUser(null);
             setCartItems({});
         }
@@ -360,8 +386,8 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         products, currency, delivery_fee,
         search, setSearch, showSearch, setShowSearch,
         cartItems, addToCart,
-        getCartCount, updateQuantity, removeFromCart, getCartAmount,
-        token, setToken, user, updateUserProfile, loadingProducts,
+        getCartCount, updateQuantity, removeFromCart, getCartAmount, refreshCart,
+        token, setToken, accountRole, isAdmin: accountRole === 'ADMIN', user, updateUserProfile, loadingProducts,
         navigate
     }
 

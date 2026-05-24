@@ -96,6 +96,8 @@ export type UserProfileUpdatePayload = {
     avatar?: string;
 };
 
+export type AccountRole = 'CUSTOMER' | 'ADMIN' | 'EMPLOYEE';
+
 export type OrderStatus =
     | 'UNPAID'
     | 'PAID'
@@ -150,6 +152,7 @@ export type OrderDetail = {
     voucherDiscount?: number;
     finalPrice?: number;
     paymentUrl?: string;
+    bankTransferQr?: PaymentQr;
     createdAt?: string;
     updatedAt?: string;
 };

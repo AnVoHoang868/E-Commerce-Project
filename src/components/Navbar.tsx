@@ -15,7 +15,7 @@ const Navbar: React.FC = () => {
         return <div className="p-4 text-red-500">Lỗi: Navbar cần được đặt trong ShopProvider</div>;
     }
 
-    const { showSearch, setShowSearch, getCartCount, token, setToken } = context;
+    const { showSearch, setShowSearch, getCartCount, token, setToken, isAdmin } = context;
 
     const logout = () => {
         setToken('');
@@ -73,7 +73,7 @@ const Navbar: React.FC = () => {
                         <div className='flex flex-col gap-2 w-36 py-3 px-5 bg-slate-100 text-gray-500 rounded'>
                             <p onClick={handleProfileClick} className='cursor-pointer hover:text-black'>Hồ sơ</p>
                             <p onClick={() => navigate('/orders')} className='cursor-pointer hover:text-black'>Đơn hàng</p>
-                            {token && <p onClick={() => navigate('/admin')} className='cursor-pointer hover:text-black'>Quản trị</p>}
+                            {isAdmin && <p onClick={() => navigate('/admin')} className='cursor-pointer hover:text-black'>Quản trị</p>}
                             {token
                                 ? <p onClick={logout} className='cursor-pointer hover:text-black'>Đăng xuất</p>
                                 : <p onClick={() => navigate('/login')} className='cursor-pointer hover:text-black'>Đăng nhập</p>
@@ -108,7 +108,7 @@ const Navbar: React.FC = () => {
                     <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/collection'>BỘ SƯU TẬP</NavLink>
                     <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/about'>GIỚI THIỆU</NavLink>
                     <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/contact'>LIÊN HỆ</NavLink>
-                    {token && <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/admin'>QUẢN TRỊ</NavLink>}
+                    {isAdmin && <NavLink onClick={() => setVisible(false)} className='py-2 pl-6 border' to='/admin'>QUẢN TRỊ</NavLink>}
                 </div>
             </div>
         </div>
