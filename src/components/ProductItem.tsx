@@ -8,10 +8,11 @@ interface ProductItemProps {
     image: string[];
     name: string;
     price: number;
+    originalPrice?: number;
     sizes: string[];
 }
 
-const ProductItem = ({ id, image, name, price, sizes }: ProductItemProps) => {
+const ProductItem = ({ id, image, name, price, originalPrice, sizes }: ProductItemProps) => {
 
     const context = useContext(ShopContext);
     const [selectedSize, setSelectedSize] = useState('');
@@ -50,7 +51,17 @@ const ProductItem = ({ id, image, name, price, sizes }: ProductItemProps) => {
                     </div>
                 </div>
                 <p className='pt-3 pb-1 text-sm font-medium'>{name}</p>
-                <p className='text-sm font-bold text-black'>{formatCurrency(price)}</p>
+                {originalPrice && originalPrice > price ? (
+                    <div className='flex items-center gap-2'>
+                        <span className='text-sm font-bold text-red-600'>{formatCurrency(price)}</span>
+                        <span className='text-[11px] text-gray-400 line-through'>{formatCurrency(originalPrice)}</span>
+                        <span className='text-[9px] font-bold text-white bg-red-500 px-1 py-0.5 rounded-sm'>
+                            -{Math.round(((originalPrice - price) / originalPrice) * 100)}%
+                        </span>
+                    </div>
+                ) : (
+                    <p className='text-sm font-bold text-black'>{formatCurrency(price)}</p>
+                )}
             </Link>
 
             {/* Add to Cart Button (Sporty Style) */}

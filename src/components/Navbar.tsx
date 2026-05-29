@@ -2,6 +2,7 @@ import React, { useState, useContext } from 'react';
 import { assets } from '../assets/assets';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { ShopContext } from '../context/ShopContext';
+import NotificationDropdown from './NotificationDropdown';
 
 const Navbar: React.FC = () => {
     const [visible, setVisible] = useState<boolean>(false);
@@ -62,6 +63,7 @@ const Navbar: React.FC = () => {
                     alt="Tìm kiếm"
                     className="w-5 cursor-pointer"
                 />
+                {token && <NotificationDropdown token={token} scope={isAdmin ? 'admin' : 'user'} />}
                 <div className='group relative'>
                     <img
                         onClick={handleProfileClick}

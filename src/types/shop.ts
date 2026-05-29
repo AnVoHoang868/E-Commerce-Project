@@ -33,6 +33,32 @@ export type PageResponse<T> = {
     hasNext: boolean;
 };
 
+export type NotificationItem = {
+    code: string;
+    senderName?: string | null;
+    receiverName?: string | null;
+    title: string;
+    message: string;
+    readed?: boolean;
+    type?: string;
+    createdAt?: string;
+};
+
+export type NotificationScope = 'user' | 'admin';
+
+export type ProductComment = {
+    productCode: string;
+    content: string;
+    rating: number;
+    createdAt?: string;
+};
+
+export type ProductCommentPayload = {
+    productCode: string;
+    content: string;
+    rating: number;
+};
+
 export type BackendProductSummary = {
     code: string;
     name: string;

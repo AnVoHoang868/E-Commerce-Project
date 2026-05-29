@@ -52,6 +52,11 @@ const matchesReceiverPayload = (receiver: Receiver, payload: ReceiverCreatePaylo
     normalizeText(receiver.addr?.street) === normalizeText(payload.addr.street) &&
     normalizeText(receiver.addr?.detail) === normalizeText(payload.addr.detail);
 
+const getLatestReceiverWithId = (receiverList: Receiver[]) =>
+    [...receiverList]
+        .filter((receiver) => receiver.id !== undefined && receiver.id !== null)
+        .sort((a, b) => Number(b.id) - Number(a.id))[0];
+
 const PlaceOrder = () => {
     const context = useContext(ShopContext);
     const token = context?.token as string;
@@ -69,6 +74,7 @@ const PlaceOrder = () => {
     const [loadingReceivers, setLoadingReceivers] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [createdOrder, setCreatedOrder] = useState<CreateOrderResponse | null>(null);
+    const [editingReceiverId, setEditingReceiverId] = useState<number | null>(null);
 
     const orderItems = useMemo(() => {
         return Object.entries(cartItems).flatMap(([productCode, sizes]) =>
@@ -216,6 +222,143 @@ const PlaceOrder = () => {
         return createdReceiver.id;
     };
 
+    const handleStartEditReceiver = (receiver: Receiver) => {
+        setEditingReceiverId(receiver.id ?? null);
+        setReceiverMode('create');
+        setReceiverForm({
+            fName: receiver.fName || '',
+            lName: receiver.lName || '',
+            phone: receiver.phone || '',
+            addr: {
+                country: receiver.addr?.country || 'Việt Nam',
+                province: receiver.addr?.province || '',
+                district: receiver.addr?.district || '',
+                street: receiver.addr?.street || '',
+                detail: receiver.addr?.detail || '',
+            },
+        });
+    };
+
+    const handleCancelEditReceiver = () => {
+        setEditingReceiverId(null);
+        setReceiverMode('select');
+        setReceiverForm(emptyReceiverForm);
+    };
+
+    const handleUpdateReceiver = async () => {
+        if (!editingReceiverId) return;
+
+        const payload = {
+            fName: receiverForm.fName.trim(),
+            lName: receiverForm.lName.trim(),
+            phone: receiverForm.phone.trim(),
+            addr: {
+                country: receiverForm.addr.country.trim() || 'Việt Nam',
+                province: receiverForm.addr.province.trim(),
+                district: receiverForm.addr.district.trim(),
+                street: receiverForm.addr.street.trim(),
+                detail: receiverForm.addr.detail.trim(),
+            },
+        };
+
+        if (!payload.fName || !payload.lName || !payload.phone) {
+            toast.error('Vui lòng nhập đầy đủ họ tên và số điện thoại người nhận');
+            return;
+        }
+
+        if (!/^[0-9]{9,10}$/.test(payload.phone)) {
+            toast.error('Số điện thoại chỉ nên gồm 9-10 chữ số');
+            return;
+        }
+
+        if (!payload.addr.province || !payload.addr.district || !payload.addr.street || !payload.addr.detail) {
+            toast.error('Vui lòng nhập đầy đủ địa chỉ giao hàng');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const createResponse = await apiRequest<ApiResponse<Receiver>>('/v1/api/user/receiver/create', {
+                method: 'POST',
+                token,
+                body: payload,
+            });
+
+            const createdReceiver = createResponse.data;
+            if (!createdReceiver?.id) {
+                throw new Error('Không thể tạo địa chỉ giao hàng mới');
+            }
+
+            try {
+                await apiRequest<ApiResponse<void>>(`/v1/api/user/receiver/remove?receiverId=${editingReceiverId}`, {
+                    method: 'DELETE',
+                    token,
+                });
+            } catch (deleteError) {
+                console.error('Lỗi khi xóa địa chỉ cũ:', deleteError);
+            }
+
+            toast.success('Đã cập nhật thông tin giao hàng');
+            
+            const listResponse = await apiRequest<ApiResponse<Receiver[]>>('/v1/api/user/receiver/get/all', {
+                method: 'GET',
+                token,
+            });
+            const nextReceivers = Array.isArray(listResponse.data) ? listResponse.data : [];
+            setReceivers(nextReceivers);
+
+            setSelectedReceiverId(createdReceiver.id);
+            setEditingReceiverId(null);
+            setReceiverMode('select');
+            setReceiverForm(emptyReceiverForm);
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : 'Không thể cập nhật địa chỉ giao hàng';
+            toast.error(message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDeleteReceiver = async () => {
+        if (!editingReceiverId) return;
+
+        const confirmed = window.confirm('Bạn có chắc chắn muốn xóa địa chỉ này? Thao tác này không thể hoàn tác.');
+        if (!confirmed) return;
+
+        setSubmitting(true);
+        try {
+            await apiRequest<ApiResponse<void>>(`/v1/api/user/receiver/remove?receiverId=${editingReceiverId}`, {
+                method: 'DELETE',
+                token,
+            });
+
+            toast.success('Đã xóa địa chỉ giao hàng');
+
+            const listResponse = await apiRequest<ApiResponse<Receiver[]>>('/v1/api/user/receiver/get/all', {
+                method: 'GET',
+                token,
+            });
+            const nextReceivers = Array.isArray(listResponse.data) ? listResponse.data : [];
+            setReceivers(nextReceivers);
+
+            if (selectedReceiverId === editingReceiverId) {
+                const latestReceiver = getLatestReceiverWithId(nextReceivers);
+                setSelectedReceiverId(latestReceiver?.id ?? null);
+            }
+
+            setEditingReceiverId(null);
+            setReceiverMode(nextReceivers.length > 0 ? 'select' : 'create');
+            setReceiverForm(emptyReceiverForm);
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : 'Không thể xóa địa chỉ giao hàng';
+            toast.error(message);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const resolveReceiverId = async () => {
         if (receiverMode === 'create') {
             return createReceiver();
@@ -304,29 +447,47 @@ const PlaceOrder = () => {
                     <section className='border bg-white p-5 sm:p-6 shadow-sm'>
                         <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-100 pb-5'>
                             <div>
-                                <p className='text-lg font-medium text-gray-900'>Thông tin giao hàng</p>
+                                <p className='text-lg font-medium text-gray-900'>
+                                    {editingReceiverId ? 'Chỉnh sửa thông tin giao hàng' : 'Thông tin giao hàng'}
+                                </p>
                                 <p className='mt-1 text-sm text-gray-500'>
-                                    {receiverMode === 'create' ? 'Tạo receiver mới để tiếp tục đặt hàng.' : 'Chọn receiver đã lưu cho đơn hàng này.'}
+                                    {editingReceiverId
+                                        ? 'Thay đổi thông tin người nhận hàng hoặc xóa địa chỉ.'
+                                        : receiverMode === 'create'
+                                        ? 'Tạo receiver mới để tiếp tục đặt hàng.'
+                                        : 'Chọn receiver đã lưu cho đơn hàng này.'}
                                 </p>
                             </div>
                             <div className='flex gap-2'>
-                                {receivers.length > 0 && (
+                                {editingReceiverId ? (
                                     <button
                                         type='button'
-                                        onClick={() => setReceiverMode(receiverMode === 'select' ? 'create' : 'select')}
-                                        className='border border-gray-300 px-4 py-2 text-xs font-medium tracking-[0.16em] hover:border-black'
+                                        onClick={handleCancelEditReceiver}
+                                        className='border border-black px-4 py-2 text-xs font-medium tracking-[0.16em] hover:bg-black hover:text-white'
                                     >
-                                        {receiverMode === 'select' ? 'THÊM MỚI' : 'CHỌN ĐÃ LƯU'}
+                                        HỦY SỬA
                                     </button>
+                                ) : (
+                                    <>
+                                        {receivers.length > 0 && (
+                                            <button
+                                                type='button'
+                                                onClick={() => setReceiverMode(receiverMode === 'select' ? 'create' : 'select')}
+                                                className='border border-gray-300 px-4 py-2 text-xs font-medium tracking-[0.16em] hover:border-black'
+                                            >
+                                                {receiverMode === 'select' ? 'THÊM MỚI' : 'CHỌN ĐÃ LƯU'}
+                                            </button>
+                                        )}
+                                        <button
+                                            type='button'
+                                            onClick={fetchReceivers}
+                                            disabled={loadingReceivers}
+                                            className='border border-black px-4 py-2 text-xs font-medium tracking-[0.16em] hover:bg-black hover:text-white disabled:border-gray-200 disabled:text-gray-400'
+                                        >
+                                            {loadingReceivers ? 'ĐANG TẢI' : 'TẢI LẠI'}
+                                        </button>
+                                    </>
                                 )}
-                                <button
-                                    type='button'
-                                    onClick={fetchReceivers}
-                                    disabled={loadingReceivers}
-                                    className='border border-black px-4 py-2 text-xs font-medium tracking-[0.16em] hover:bg-black hover:text-white disabled:border-gray-200 disabled:text-gray-400'
-                                >
-                                    {loadingReceivers ? 'ĐANG TẢI' : 'TẢI LẠI'}
-                                </button>
                             </div>
                         </div>
 
@@ -347,18 +508,40 @@ const PlaceOrder = () => {
                                             type='button'
                                             disabled={!receiver.id}
                                             onClick={() => receiver.id && setSelectedReceiverId(receiver.id)}
-                                            className={`w-full border p-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
-                                                isSelected ? 'border-black bg-black text-white shadow-md' : 'border-gray-200 hover:border-black'
+                                            className={`w-full border p-4 text-left transition-all rounded-md disabled:cursor-not-allowed disabled:opacity-60 ${
+                                                isSelected ? 'border-black bg-neutral-50 shadow-sm' : 'border-gray-200 bg-white hover:border-black'
                                             }`}
                                         >
                                             <div className='flex items-start justify-between gap-4'>
-                                                <div>
-                                                    <p className='font-medium'>{[receiver.fName, receiver.lName].filter(Boolean).join(' ') || 'Người nhận'}</p>
-                                                    <p className={`mt-1 text-sm ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>{receiver.phone || 'Chưa có số điện thoại'}</p>
-                                                    <p className={`mt-2 text-sm leading-6 ${isSelected ? 'text-white/85' : 'text-gray-600'}`}>{compactAddress(receiver) || 'Chưa có địa chỉ'}</p>
-                                                    {!receiver.id && <p className='mt-2 text-xs text-red-500'>Thiếu receiver id</p>}
+                                                <div className='flex items-start gap-4 w-full'>
+                                                    {/* Radio Indicator */}
+                                                    <div className={`mt-1 h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${
+                                                        isSelected ? 'border-black bg-black' : 'border-gray-300'
+                                                    }`}>
+                                                        {isSelected && <div className='h-1.5 w-1.5 rounded-full bg-white' />}
+                                                    </div>
+
+                                                    <div className='min-w-0 flex-1'>
+                                                        <p className='font-semibold text-gray-900'>{[receiver.fName, receiver.lName].filter(Boolean).join(' ') || 'Người nhận'}</p>
+                                                        <p className='mt-1 text-sm text-gray-500'>{receiver.phone || 'Chưa có số điện thoại'}</p>
+                                                        <p className='mt-2 text-sm leading-6 text-gray-600'>{compactAddress(receiver) || 'Chưa có địa chỉ'}</p>
+                                                        {!receiver.id && <p className='mt-2 text-xs text-red-500'>Thiếu receiver id</p>}
+                                                    </div>
                                                 </div>
-                                                <span className={`mt-1 h-4 w-4 rounded-full border ${isSelected ? 'border-white bg-white' : 'border-gray-400'}`}></span>
+
+                                                {/* Edit Button */}
+                                                {receiver.id && (
+                                                    <button
+                                                        type='button'
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            handleStartEditReceiver(receiver);
+                                                        }}
+                                                        className='border border-gray-300 px-3 py-1.5 text-xs font-medium rounded hover:border-black transition-all bg-white hover:bg-neutral-50 shrink-0 text-gray-700'
+                                                    >
+                                                        Sửa
+                                                    </button>
+                                                )}
                                             </div>
                                         </button>
                                     );
@@ -415,6 +598,36 @@ const PlaceOrder = () => {
                                     className='border border-gray-300 px-4 py-3 outline-none focus:border-black sm:col-span-2'
                                     placeholder='Quốc gia'
                                 />
+
+                                {/* Edit Mode Buttons (Save, Delete, Cancel) */}
+                                {editingReceiverId && (
+                                    <div className='mt-6 grid gap-3 sm:grid-cols-3 sm:col-span-2'>
+                                        <button
+                                            type='button'
+                                            disabled={submitting}
+                                            onClick={handleUpdateReceiver}
+                                            className='bg-black px-6 py-3 text-sm font-medium text-white transition-all hover:bg-gray-800 disabled:bg-gray-300'
+                                        >
+                                            {submitting ? 'ĐANG LƯU...' : 'Lưu thay đổi'}
+                                        </button>
+                                        <button
+                                            type='button'
+                                            disabled={submitting}
+                                            onClick={handleDeleteReceiver}
+                                            className='border border-red-500 px-6 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-all disabled:border-gray-300 disabled:text-gray-300'
+                                        >
+                                            Xóa địa chỉ
+                                        </button>
+                                        <button
+                                            type='button'
+                                            disabled={submitting}
+                                            onClick={handleCancelEditReceiver}
+                                            className='border border-black px-6 py-3 text-sm font-medium hover:bg-black hover:text-white transition-all disabled:border-gray-300 disabled:text-gray-300'
+                                        >
+                                            Hủy
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </section>
@@ -466,26 +679,58 @@ const PlaceOrder = () => {
                             <button
                                 type='button'
                                 onClick={() => setPaymentType('PAYMENT_UPON_DELIVER')}
-                                className={`border p-4 text-left transition-all ${paymentType === 'PAYMENT_UPON_DELIVER' ? 'border-black bg-black text-white' : 'border-gray-200 hover:border-black'}`}
+                                className={`border p-4 text-left transition-all rounded-md ${
+                                    paymentType === 'PAYMENT_UPON_DELIVER' 
+                                        ? 'border-black bg-neutral-50 shadow-sm' 
+                                        : 'border-gray-200 bg-white hover:border-black'
+                                }`}
                             >
-                                <div className='flex items-center gap-3'>
-                                    <img className='h-5 w-auto' src={assets.razorpay_logo} alt='Thanh toán khi nhận hàng' />
-                                    <div>
-                                        <p className='text-sm font-medium'>Thanh toán khi nhận hàng</p>
-                                        <p className={`mt-1 text-xs ${paymentType === 'PAYMENT_UPON_DELIVER' ? 'text-white/80' : 'text-gray-500'}`}>Đơn bắt đầu ở trạng thái PENDING.</p>
+                                <div className='flex items-center gap-4'>
+                                    {/* Radio Indicator */}
+                                    <div className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${
+                                        paymentType === 'PAYMENT_UPON_DELIVER' ? 'border-black bg-black' : 'border-gray-300'
+                                    }`}>
+                                        {paymentType === 'PAYMENT_UPON_DELIVER' && <div className='h-1.5 w-1.5 rounded-full bg-white' />}
+                                    </div>
+
+                                    {/* Logo badge container */}
+                                    <div className='flex items-center justify-center bg-white border border-gray-150 rounded px-2 py-1 h-8 w-16 shrink-0 shadow-sm'>
+                                        <img className='h-full w-auto object-contain' src={assets.razorpay_logo} alt='Thanh toán khi nhận hàng' />
+                                    </div>
+
+                                    {/* Text Content */}
+                                    <div className='min-w-0 flex-1'>
+                                        <p className='text-sm font-semibold text-gray-900'>Thanh toán khi nhận hàng (COD)</p>
+                                        <p className='mt-0.5 text-xs text-gray-500'>Đơn bắt đầu ở trạng thái PENDING.</p>
                                     </div>
                                 </div>
                             </button>
                             <button
                                 type='button'
                                 onClick={() => setPaymentType('ONLINE')}
-                                className={`border p-4 text-left transition-all ${paymentType === 'ONLINE' ? 'border-black bg-black text-white' : 'border-gray-200 hover:border-black'}`}
+                                className={`border p-4 text-left transition-all rounded-md ${
+                                    paymentType === 'ONLINE' 
+                                        ? 'border-black bg-neutral-50 shadow-sm' 
+                                        : 'border-gray-200 bg-white hover:border-black'
+                                }`}
                             >
-                                <div className='flex items-center gap-3'>
-                                    <img className='h-5 w-auto bg-white px-1 py-0.5' src={assets.stripe_logo} alt='Thanh toán online' />
-                                    <div>
-                                        <p className='text-sm font-medium'>Thanh toán online</p>
-                                        <p className={`mt-1 text-xs ${paymentType === 'ONLINE' ? 'text-white/80' : 'text-gray-500'}`}>Đơn bắt đầu ở trạng thái UNPAID.</p>
+                                <div className='flex items-center gap-4'>
+                                    {/* Radio Indicator */}
+                                    <div className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 transition-colors duration-200 ${
+                                        paymentType === 'ONLINE' ? 'border-black bg-black' : 'border-gray-300'
+                                    }`}>
+                                        {paymentType === 'ONLINE' && <div className='h-1.5 w-1.5 rounded-full bg-white' />}
+                                    </div>
+
+                                    {/* Logo badge container */}
+                                    <div className='flex items-center justify-center bg-white border border-gray-150 rounded px-2 py-1 h-8 w-16 shrink-0 shadow-sm'>
+                                        <img className='h-full w-auto object-contain' src={assets.stripe_logo} alt='Thanh toán online' />
+                                    </div>
+
+                                    {/* Text Content */}
+                                    <div className='min-w-0 flex-1'>
+                                        <p className='text-sm font-semibold text-gray-900'>Thanh toán online (VNPAY / Thẻ)</p>
+                                        <p className='mt-0.5 text-xs text-gray-500'>Đơn bắt đầu ở trạng thái UNPAID.</p>
                                     </div>
                                 </div>
                             </button>

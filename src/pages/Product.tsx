@@ -2,9 +2,10 @@ import { useContext, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ShopContext } from '../context/ShopContext';
 import { assets } from '../assets/assets';
-import type { Product as ProductType } from '../types/shop';
+import type { Product as ProductType, ProductComment } from '../types/shop';
 import RelatedProducts from '../components/RelatedProducts'; // RelatedProducts is already converted
 import { formatCurrency } from '../lib/format';
+import { getProductComments } from '../lib/commentApi';
 
 const Product = () => {
     const params = useParams(); // useParams returns a string based on route definitions
@@ -17,6 +18,11 @@ const Product = () => {
     const [productData, setProductData] = useState<ProductType | null>(null);
     const [image, setImage] = useState('');
     const [size, setSize] = useState('');
+    const [comments, setComments] = useState<ProductComment[]>([]);
+    const [commentPage, setCommentPage] = useState(0);
+    const [commentTotalPages, setCommentTotalPages] = useState(0);
+    const [commentTotalElements, setCommentTotalElements] = useState(0);
+    const [loadingComments, setLoadingComments] = useState(false);
 
     const fetchProductData = () => {
         // Note: In assets.ts we defined `_id`. Ensure usage matches.
@@ -30,6 +36,46 @@ const Product = () => {
     useEffect(() => {
         fetchProductData();
     }, [productId, products]);
+
+    useEffect(() => {
+        const loadComments = async () => {
+            if (!productData?._id) return;
+
+            setLoadingComments(true);
+            try {
+                const response = await getProductComments(productData._id, commentPage, 5);
+                setComments(response.data?.items || []);
+                setCommentTotalPages(response.data?.totalPages || 0);
+                setCommentTotalElements(response.data?.totalElements || 0);
+            } catch (error) {
+                console.error(error);
+                setComments([]);
+                setCommentTotalPages(0);
+                setCommentTotalElements(0);
+            } finally {
+                setLoadingComments(false);
+            }
+        };
+
+        loadComments();
+    }, [commentPage, productData?._id]);
+
+    useEffect(() => {
+        setCommentPage(0);
+    }, [productData?._id]);
+
+    const renderRating = (rating?: number) => (
+        <div className='flex items-center gap-1'>
+            {Array.from({ length: 5 }).map((_, index) => (
+                <img
+                    key={index}
+                    src={index < Math.round(rating || 0) ? assets.star_icon : assets.star_dull_icon}
+                    className='w-3.5'
+                    alt=''
+                />
+            ))}
+        </div>
+    );
 
     return productData ? (
         <div className="border-t-2 pt-10 transition-opacity ease-in duration-500 opacity-100">
@@ -67,9 +113,23 @@ const Product = () => {
                         <img src={assets.star_dull_icon} className="w-3.5" alt="Dull Star" />
                         <p className="pl-2">122</p>
                     </div>
-                    <p className="mt-5 text-3xl font-medium">
-                        {formatCurrency(productData.price)}
-                    </p>
+                    {productData.originalPrice && productData.originalPrice > productData.price ? (
+                        <div className="flex items-center gap-3 mt-5">
+                            <p className="text-3xl font-bold text-red-600">
+                                {formatCurrency(productData.price)}
+                            </p>
+                            <p className="text-lg text-gray-400 line-through">
+                                {formatCurrency(productData.originalPrice)}
+                            </p>
+                            <span className="text-xs font-bold text-white bg-red-500 px-2.5 py-1 rounded-sm">
+                                GIẢM {Math.round(((productData.originalPrice - productData.price) / productData.originalPrice) * 100)}%
+                            </span>
+                        </div>
+                    ) : (
+                        <p className="mt-5 text-3xl font-medium text-black">
+                            {formatCurrency(productData.price)}
+                        </p>
+                    )}
                     <p className="mt-5 text-gray-500">{productData.description}</p>
                     <div className="flex flex-col gap-4 my-8">
                         <p>Chọn size</p>
@@ -109,7 +169,7 @@ const Product = () => {
             <div className="mt-20">
                 <div className="flex">
                     <b className="border px-5 py-3 text-sm">Mô tả</b>
-                    <p className="border px-5 py-3 text-sm">Đánh giá (122)</p>
+                    <p className="border px-5 py-3 text-sm">Đánh giá ({commentTotalElements})</p>
                 </div>
                 <div className="flex flex-col gap-4 border px-6 py-6 text-sm text-gray-500">
                     <p>
@@ -119,6 +179,51 @@ const Product = () => {
                     <p>
                         Vui lòng chọn đúng size trước khi thêm vào giỏ hàng để hệ thống kiểm tra tồn kho chính xác.
                     </p>
+                </div>
+                <div className='border border-t-0 px-6 py-6'>
+                    <div className='flex items-center justify-between gap-4'>
+                        <p className='text-sm font-medium text-gray-900'>Đánh giá từ khách hàng</p>
+                        <p className='text-xs text-gray-500'>Trang {commentTotalPages ? commentPage + 1 : 0}/{commentTotalPages}</p>
+                    </div>
+
+                    {loadingComments ? (
+                        <p className='py-8 text-center text-sm text-gray-500'>Đang tải đánh giá...</p>
+                    ) : comments.length === 0 ? (
+                        <p className='py-8 text-center text-sm text-gray-500'>Sản phẩm chưa có đánh giá.</p>
+                    ) : (
+                        <div className='mt-4 divide-y divide-gray-100'>
+                            {comments.map((comment, index) => (
+                                <div key={`${comment.productCode}-${comment.createdAt || index}`} className='py-4'>
+                                    <div className='flex items-center justify-between gap-3'>
+                                        {renderRating(comment.rating)}
+                                        <span className='text-xs text-gray-400'>
+                                            {comment.createdAt ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium' }).format(new Date(comment.createdAt)) : ''}
+                                        </span>
+                                    </div>
+                                    <p className='mt-2 text-sm leading-6 text-gray-600'>{comment.content}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className='mt-5 flex justify-end gap-2'>
+                        <button
+                            type='button'
+                            onClick={() => setCommentPage((current) => Math.max(current - 1, 0))}
+                            disabled={commentPage === 0 || loadingComments}
+                            className='border border-gray-300 px-4 py-2 text-xs font-medium hover:border-black disabled:text-gray-300'
+                        >
+                            Trước
+                        </button>
+                        <button
+                            type='button'
+                            onClick={() => setCommentPage((current) => Math.min(current + 1, Math.max(commentTotalPages - 1, 0)))}
+                            disabled={commentPage >= commentTotalPages - 1 || commentTotalPages === 0 || loadingComments}
+                            className='border border-gray-300 px-4 py-2 text-xs font-medium hover:border-black disabled:text-gray-300'
+                        >
+                            Sau
+                        </button>
+                    </div>
                 </div>
             </div>
 

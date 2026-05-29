@@ -14,7 +14,6 @@ const trackingSteps: Array<{ status: OrderStatus; label: string }> = [
     { status: 'CONFIRMED', label: 'Đã xác nhận' },
     { status: 'SHIPPING', label: 'Đang giao' },
     { status: 'DELIVERED', label: 'Đã giao' },
-    { status: 'COMPLETED', label: 'Hoàn tất' },
 ];
 
 const statusLabel: Record<OrderStatus, string> = {
@@ -66,11 +65,13 @@ const TrackOrder = () => {
     const [error, setError] = useState('');
     const [actionLoading, setActionLoading] = useState(false);
 
-    const getOrder = async () => {
+    const getOrder = async (silent = false) => {
         if (!token || !orderCode) return;
 
-        setLoading(true);
-        setError('');
+        if (!silent) {
+            setLoading(true);
+            setError('');
+        }
 
         try {
             const data = await apiRequest<ApiResponse<OrderDetail>>(`/v1/api/user/order/${encodeURIComponent(orderCode)}`, {
@@ -80,10 +81,14 @@ const TrackOrder = () => {
 
             setOrder(data.data);
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Không thể tải chi tiết đơn hàng';
-            setError(message);
+            if (!silent) {
+                const message = error instanceof Error ? error.message : 'Không thể tải chi tiết đơn hàng';
+                setError(message);
+            }
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
     };
 
@@ -91,8 +96,30 @@ const TrackOrder = () => {
         getOrder();
     }, [orderCode, token]);
 
+    // Tự động đồng bộ ngầm chi tiết tiến trình đơn hàng mỗi 10 giây
+    useEffect(() => {
+        if (!token || !orderCode) return;
+        const interval = setInterval(() => {
+            getOrder(true);
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [orderCode, token]);
+
+    // Tự động đồng bộ ngầm ngay lập tức khi người dùng quay lại tab/cửa sổ này
+    useEffect(() => {
+        if (!token || !orderCode) return;
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                getOrder(true);
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [orderCode, token]);
+
     const activeStepIndex = useMemo(() => {
         if (!order || order.status === 'CANCELLED' || order.status === 'RETURNED') return -1;
+        if (order.status === 'COMPLETED') return trackingSteps.length;
         return trackingSteps.findIndex((step) => step.status === order.status);
     }, [order]);
 
@@ -222,11 +249,12 @@ const TrackOrder = () => {
                                         Hủy đơn
                                     </button>
                                 )}
-                                {order.status === 'DELIVERED' && (
+                                {/* Tạm thời ẩn nút Xác nhận đã nhận hàng do lỗi API 409 của BE */}
+                                {/* {order.status === 'DELIVERED' && (
                                     <button onClick={completeOrder} disabled={actionLoading} className='bg-green-600 px-5 py-2 text-sm text-white hover:bg-green-700 disabled:bg-gray-300'>
                                         Xác nhận đã nhận hàng
                                     </button>
-                                )}
+                                )} */}
                             </div>
 
                             <div className='mt-8'>
