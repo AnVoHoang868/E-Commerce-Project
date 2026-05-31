@@ -46,6 +46,17 @@ export type NotificationItem = {
 
 export type NotificationScope = 'user' | 'admin';
 
+export type VoucherDiscountType = 'PERCENT' | 'FIXED';
+
+export type UserVoucher = {
+    code: string;
+    type: VoucherDiscountType;
+    value: number;
+    minOrderAmount: number;
+    status: 'AVAILABLE' | 'USED' | 'EXPIRED' | string;
+    endAt?: string;
+};
+
 export type ProductComment = {
     productCode: string;
     content: string;

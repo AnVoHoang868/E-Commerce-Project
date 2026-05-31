@@ -6,6 +6,7 @@ import Title from '../components/Title';
 import { assets } from '../assets/assets';
 import { apiRequest } from '../lib/api';
 import { formatCurrency } from '../lib/format';
+import { getMyVouchers } from '../lib/voucherApi';
 import type {
     ApiResponse,
     CartItems,
@@ -14,6 +15,7 @@ import type {
     Product,
     Receiver,
     ReceiverCreatePayload,
+    UserVoucher,
 } from '../types/shop';
 
 type PaymentMethod = 'PAYMENT_UPON_DELIVER' | 'ONLINE';
@@ -57,6 +59,21 @@ const getLatestReceiverWithId = (receiverList: Receiver[]) =>
         .filter((receiver) => receiver.id !== undefined && receiver.id !== null)
         .sort((a, b) => Number(b.id) - Number(a.id))[0];
 
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+const calculateVoucherDiscount = (voucher: UserVoucher, amount: number) => {
+    if (amount < Number(voucher.minOrderAmount || 0)) return 0;
+
+    const rawDiscount = voucher.type === 'PERCENT'
+        ? amount * (Number(voucher.value || 0) / 100)
+        : Number(voucher.value || 0);
+
+    return roundMoney(Math.min(Math.max(rawDiscount, 0), amount));
+};
+
+const voucherValueLabel = (voucher: UserVoucher) =>
+    voucher.type === 'PERCENT' ? `${voucher.value}%` : formatCurrency(voucher.value);
+
 const PlaceOrder = () => {
     const context = useContext(ShopContext);
     const token = context?.token as string;
@@ -75,6 +92,10 @@ const PlaceOrder = () => {
     const [submitting, setSubmitting] = useState(false);
     const [createdOrder, setCreatedOrder] = useState<CreateOrderResponse | null>(null);
     const [editingReceiverId, setEditingReceiverId] = useState<number | null>(null);
+    const [myVouchers, setMyVouchers] = useState<UserVoucher[]>([]);
+    const [loadingVouchers, setLoadingVouchers] = useState(false);
+    const [voucherInput, setVoucherInput] = useState('');
+    const [appliedVoucher, setAppliedVoucher] = useState<UserVoucher | null>(null);
 
     const orderItems = useMemo(() => {
         return Object.entries(cartItems).flatMap(([productCode, sizes]) =>
@@ -108,6 +129,8 @@ const PlaceOrder = () => {
     }, [cartItems, products]);
 
     const subtotal = orderItems.reduce((total, item) => total + item.finalPrice * item.quantity, 0);
+    const voucherDiscount = appliedVoucher ? calculateVoucherDiscount(appliedVoucher, subtotal) : 0;
+    const orderFinalPrice = roundMoney(Math.max(subtotal - voucherDiscount, 0));
     const selectedReceiver = receivers.find((receiver) => receiver.id === selectedReceiverId);
     const receiverApiMissingId = receivers.length > 0 && receivers.some((receiver) => receiver.id === undefined || receiver.id === null);
 
@@ -146,6 +169,68 @@ const PlaceOrder = () => {
             fetchReceivers();
         }
     }, [token]);
+
+    const fetchMyVouchers = async () => {
+        if (!token) return;
+
+        setLoadingVouchers(true);
+        try {
+            const response = await getMyVouchers(token);
+            setMyVouchers(Array.isArray(response.data) ? response.data : []);
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : 'Khong the tai voucher cua ban';
+            toast.error(message);
+        } finally {
+            setLoadingVouchers(false);
+        }
+    };
+
+    useEffect(() => {
+        if (token) {
+            fetchMyVouchers();
+        }
+    }, [token]);
+
+    useEffect(() => {
+        if (appliedVoucher && subtotal < Number(appliedVoucher.minOrderAmount || 0)) {
+            setAppliedVoucher(null);
+        }
+    }, [appliedVoucher, subtotal]);
+
+    const handleApplyVoucher = (code = voucherInput) => {
+        const normalizedCode = code.trim().toUpperCase();
+        if (!normalizedCode) {
+            toast.error('Vui long nhap ma voucher');
+            return;
+        }
+
+        const voucher = myVouchers.find((item) => item.code.toUpperCase() === normalizedCode);
+        if (!voucher) {
+            toast.error('Ma voucher chua co trong danh sach voucher kha dung cua ban');
+            return;
+        }
+
+        if (subtotal < Number(voucher.minOrderAmount || 0)) {
+            toast.error(`Don hang can toi thieu ${formatCurrency(voucher.minOrderAmount)} de ap dung voucher nay`);
+            return;
+        }
+
+        const discount = calculateVoucherDiscount(voucher, subtotal);
+        if (discount <= 0) {
+            toast.error('Voucher khong tao ra gia tri giam hop le cho don hang nay');
+            return;
+        }
+
+        setAppliedVoucher(voucher);
+        setVoucherInput(voucher.code);
+        toast.success(`Da ap dung voucher ${voucher.code}`);
+    };
+
+    const handleRemoveVoucher = () => {
+        setAppliedVoucher(null);
+        setVoucherInput('');
+    };
 
     const updateReceiverField = (field: keyof ReceiverCreatePayload, value: string) => {
         setReceiverForm((prev) => ({ ...prev, [field]: value }));
@@ -394,8 +479,9 @@ const PlaceOrder = () => {
                     finalPrice: item.finalPrice,
                 })),
                 totalPrice: subtotal,
-                voucherDiscount: 0,
-                finalPrice: subtotal,
+                voucherCode: appliedVoucher?.code,
+                voucherDiscount,
+                finalPrice: orderFinalPrice,
                 paymentType,
                 note: note.trim() || undefined,
             };
@@ -736,6 +822,88 @@ const PlaceOrder = () => {
                             </button>
                         </div>
 
+                        <div className='mt-6 border border-gray-100 p-4'>
+                            <div className='flex items-start justify-between gap-4'>
+                                <div>
+                                    <p className='text-sm font-semibold text-gray-900'>Voucher</p>
+                                    <p className='mt-1 text-xs text-gray-500'>Chon voucher kha dung trong tai khoan cua ban.</p>
+                                </div>
+                                <button
+                                    type='button'
+                                    onClick={fetchMyVouchers}
+                                    disabled={loadingVouchers}
+                                    className='border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:border-black disabled:text-gray-300'
+                                >
+                                    {loadingVouchers ? 'Dang tai' : 'Tai lai'}
+                                </button>
+                            </div>
+
+                            <div className='mt-4 flex flex-col gap-2 sm:flex-row'>
+                                <input
+                                    value={voucherInput}
+                                    onChange={(event) => setVoucherInput(event.target.value.toUpperCase())}
+                                    className='min-w-0 flex-1 border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
+                                    placeholder='Nhap ma voucher'
+                                />
+                                <button
+                                    type='button'
+                                    onClick={() => handleApplyVoucher()}
+                                    disabled={orderItems.length === 0}
+                                    className='bg-black px-5 py-3 text-sm font-medium text-white disabled:bg-gray-300'
+                                >
+                                    Ap dung
+                                </button>
+                                {appliedVoucher && (
+                                    <button
+                                        type='button'
+                                        onClick={handleRemoveVoucher}
+                                        className='border border-gray-300 px-5 py-3 text-sm font-medium text-gray-700 hover:border-black'
+                                    >
+                                        Go bo
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className='mt-4 grid gap-2'>
+                                {myVouchers.length === 0 ? (
+                                    <p className='text-sm text-gray-500'>
+                                        {loadingVouchers ? 'Dang tai voucher...' : 'Chua co voucher kha dung.'}
+                                    </p>
+                                ) : myVouchers.map((voucher) => {
+                                    const disabledByAmount = subtotal < Number(voucher.minOrderAmount || 0);
+                                    const isApplied = appliedVoucher?.code === voucher.code;
+
+                                    return (
+                                        <button
+                                            key={`${voucher.code}-${voucher.status}`}
+                                            type='button'
+                                            disabled={disabledByAmount || orderItems.length === 0}
+                                            onClick={() => handleApplyVoucher(voucher.code)}
+                                            className={`border px-4 py-3 text-left text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                                                isApplied ? 'border-black bg-neutral-50' : 'border-gray-200 hover:border-black'
+                                            }`}
+                                        >
+                                            <div className='flex items-start justify-between gap-3'>
+                                                <div>
+                                                    <p className='font-semibold text-gray-900'>{voucher.code}</p>
+                                                    <p className='mt-1 text-xs text-gray-500'>
+                                                        Giam {voucherValueLabel(voucher)} | Don tu {formatCurrency(voucher.minOrderAmount)}
+                                                    </p>
+                                                </div>
+                                                <span className='text-xs font-medium text-gray-500'>{voucher.status}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {appliedVoucher && (
+                                <div className='mt-4 border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800'>
+                                    Dang ap dung {appliedVoucher.code}: giam {formatCurrency(voucherDiscount)}
+                                </div>
+                            )}
+                        </div>
+
                         <div className='mt-6 bg-gray-50 px-4 py-4 text-sm'>
                             <div className='flex justify-between text-gray-600'>
                                 <span>Tạm tính sản phẩm</span>
@@ -743,11 +911,11 @@ const PlaceOrder = () => {
                             </div>
                             <div className='mt-2 flex justify-between text-gray-600'>
                                 <span>Giảm giá</span>
-                                <span>{formatCurrency(0)}</span>
+                                <span>{formatCurrency(voucherDiscount)}</span>
                             </div>
                             <div className='mt-3 flex justify-between border-t border-gray-200 pt-3 text-base font-medium text-gray-900'>
                                 <span>Tổng tạo đơn</span>
-                                <span>{formatCurrency(subtotal)}</span>
+                                <span>{formatCurrency(orderFinalPrice)}</span>
                             </div>
                         </div>
 

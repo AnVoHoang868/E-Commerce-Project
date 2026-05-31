@@ -204,8 +204,6 @@ const emptyItemRow = (): ItemRow => ({
 const formatDate = (date?: string) =>
     date ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(date)) : 'Không có';
 
-const toInstant = (value: string) => (value ? new Date(value).toISOString() : undefined);
-
 const Admin = () => {
     const context = useContext(ShopContext);
     const token = context?.token as string;
@@ -514,8 +512,25 @@ const Admin = () => {
     const createVoucher = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        if (!voucherForm.code || !voucherForm.value || !voucherForm.minOrderAmount) {
-            toast.error('Vui lòng nhập mã voucher, giá trị giảm và đơn tối thiểu');
+        if (!voucherForm.code.trim() || !voucherForm.value || voucherForm.minOrderAmount === '' || !voucherForm.startAt || !voucherForm.endAt) {
+            toast.error('Vui lòng nhập đầy đủ mã voucher, giá trị giảm, đơn tối thiểu và thời gian áp dụng');
+            return;
+        }
+
+        const startAt = new Date(voucherForm.startAt);
+        const endAt = new Date(voucherForm.endAt);
+        if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+            toast.error('Thoi gian voucher khong hop le');
+            return;
+        }
+
+        if (endAt <= startAt) {
+            toast.error('Thoi gian ket thuc phai lon hon thoi gian bat dau');
+            return;
+        }
+
+        if (Number(voucherForm.value) < 1 || Number(voucherForm.minOrderAmount) < 0) {
+            toast.error('Gia tri voucher phai lon hon 0 va don toi thieu khong duoc am');
             return;
         }
 
@@ -530,8 +545,8 @@ const Admin = () => {
                     voucherType: voucherForm.voucherType,
                     value: Number(voucherForm.value),
                     minOrderAmount: Number(voucherForm.minOrderAmount),
-                    startAt: toInstant(voucherForm.startAt),
-                    endAt: toInstant(voucherForm.endAt),
+                    startAt: startAt.toISOString(),
+                    endAt: endAt.toISOString(),
                 },
             });
 
@@ -1456,7 +1471,6 @@ const Admin = () => {
                     <form onSubmit={createVoucher} className='border bg-white p-5 sm:p-6 shadow-sm'>
                         <div className='border-b border-gray-100 pb-5'>
                             <p className='text-lg font-medium text-gray-900'>Tạo voucher</p>
-                            <p className='mt-1 text-sm text-gray-500'>Gửi dữ liệu tới `/v1/api/admin/voucher/create`.</p>
                         </div>
 
                         <div className='mt-5 grid gap-4 sm:grid-cols-2'>
@@ -1465,6 +1479,7 @@ const Admin = () => {
                                 onChange={(event) => setVoucherForm((prev) => ({ ...prev, code: event.target.value }))}
                                 className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black sm:col-span-2'
                                 placeholder='Mã voucher, ví dụ SALE30'
+                                required
                             />
                             <select
                                 value={voucherForm.discountType}
@@ -1489,6 +1504,7 @@ const Admin = () => {
                                 type='number'
                                 min={1}
                                 placeholder='Giá trị giảm'
+                                required
                             />
                             <input
                                 value={voucherForm.minOrderAmount}
@@ -1497,6 +1513,7 @@ const Admin = () => {
                                 type='number'
                                 min={0}
                                 placeholder='Đơn tối thiểu'
+                                required
                             />
                             <div>
                                 <p className='mb-2 text-xs uppercase tracking-[0.16em] text-gray-400'>Bắt đầu</p>
@@ -1505,6 +1522,7 @@ const Admin = () => {
                                     onChange={(event) => setVoucherForm((prev) => ({ ...prev, startAt: event.target.value }))}
                                     className='w-full border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                     type='datetime-local'
+                                    required
                                 />
                             </div>
                             <div>
@@ -1514,6 +1532,7 @@ const Admin = () => {
                                     onChange={(event) => setVoucherForm((prev) => ({ ...prev, endAt: event.target.value }))}
                                     className='w-full border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                     type='datetime-local'
+                                    required
                                 />
                             </div>
                         </div>
@@ -2378,7 +2397,6 @@ const Admin = () => {
                                                         {itemStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                                                     </select>
                                                     <input
-                                                        value={row.quantity}
                                                         onChange={(event) => {
                                                             const value = event.target.value;
                                                             if (/^\d*$/.test(value)) {
@@ -2390,15 +2408,6 @@ const Admin = () => {
                                                         inputMode='numeric'
                                                         placeholder='SL'
                                                     />
-                                                    <button
-                                                        type='button'
-                                                        onClick={() => updateSingleItemQuantity(row)}
-                                                        disabled={submittingProductAdmin}
-                                                        className='bg-black text-white w-11 h-11 flex items-center justify-center text-xl font-bold rounded hover:bg-neutral-800 disabled:bg-gray-300 transition-all'
-                                                        title='Cập nhật số lượng sản phẩm'
-                                                    >
-                                                        +
-                                                    </button>
                                                 </div>
                                             ))}
                                         </div>
