@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import Title from './Title';
 import ProductItem from './ProductItem';
@@ -6,16 +6,14 @@ import ProductItem from './ProductItem';
 const BestSeller = () => {
 
     const context = useContext(ShopContext);
-    const [bestSeller, setBestSeller] = useState<any[]>([]);
+    const bestSeller = useMemo<any[]>(() => {
+        if (!context || !context.products) return [];
+        return context.products.slice(0, 10);
+    }, [context]);
+
     const [currentPage, setCurrentPage] = useState(0);
 
     const itemsPerPage = 4; // Số lượng hiển thị mỗi "trang" trượt
-
-    useEffect(() => {
-        if (context && context.products) {
-            setBestSeller(context.products.slice(0, 10)); // Chỉ lấy 10 sản phẩm bán chạy nhất
-        }
-    }, [context]);
 
     const totalPages = Math.ceil(bestSeller.length / itemsPerPage);
 

@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import Title from './Title';
 import ProductItem from './ProductItem';
@@ -6,16 +6,13 @@ import ProductItem from './ProductItem';
 const LatestCollection = () => {
 
     const context = useContext(ShopContext);
-    const [latestProducts, setLatestProducts] = useState<any[]>([]);
-    const [currentPage, setCurrentPage] = useState(0);
-
-    const itemsPerPage = 4; // Số lượng sản phẩm hiển thị trên 1 trang (1 hàng)
-
-    useEffect(() => {
-        if (context && context.products) {
-            setLatestProducts(context.products.slice(0, 10)); // Lấy top 10 sản phẩm
-        }
+    const latestProducts = useMemo<any[]>(() => {
+        if (!context || !context.products) return [];
+        return context.products.slice(0, 10);
     }, [context]);
+
+    const [currentPage, setCurrentPage] = useState(0);
+    const itemsPerPage = 4; // Số lượng sản phẩm hiển thị trên 1 trang (1 hàng)
 
     const totalPages = Math.ceil(latestProducts.length / itemsPerPage); // tính số trang
 

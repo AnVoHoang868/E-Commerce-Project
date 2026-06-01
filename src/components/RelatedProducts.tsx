@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useMemo } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import ProductItem from './ProductItem';
 import Title from './Title';
@@ -12,16 +12,14 @@ interface RelatedProductsProps {
 const RelatedProducts = ({ category, subCategory }: RelatedProductsProps) => {
 
     const context = useContext(ShopContext);
-    const [related, setRelated] = useState<Product[]>([]);
-
-    useEffect(() => {
-        if (context && context.products.length > 0) {
-            let productsCopy = (context.products as Product[]).slice();
-            productsCopy = productsCopy.filter((item) => category === item.category);
-            productsCopy = productsCopy.filter((item) => subCategory === item.subCategory);
-            setRelated(productsCopy.slice(0, 5));
-        }
-    }, [context, category, subCategory]); // context added to dependency array
+    
+    const related = useMemo(() => {
+        if (!context || context.products.length === 0) return [];
+        let productsCopy = (context.products as Product[]).slice();
+        productsCopy = productsCopy.filter((item) => category === item.category);
+        productsCopy = productsCopy.filter((item) => subCategory === item.subCategory);
+        return productsCopy.slice(0, 5);
+    }, [context, category, subCategory]);
 
     return (
         <div className="my-24">

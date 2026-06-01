@@ -26,10 +26,6 @@ const Profile = () => {
         avatar: '',
     });
 
-    if (!token) {
-        return <Navigate to='/login' replace />;
-    }
-
     const firstName = user?.f_name || user?.firstName;
     const lastName = user?.l_name || user?.lastName;
     const avatar = user?.img || user?.avatar;
@@ -60,6 +56,10 @@ const Profile = () => {
             avatar: avatar || '',
         });
     }, [avatar, firstName, lastName, user?.id]);
+
+    if (!token) {
+        return <Navigate to='/login' replace />;
+    }
 
     const handleChange = (field: keyof UserProfileUpdatePayload, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
