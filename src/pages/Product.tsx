@@ -6,6 +6,9 @@ import type { Product as ProductType, ProductComment } from '../types/shop';
 import RelatedProducts from '../components/RelatedProducts'; // RelatedProducts is already converted
 import { formatCurrency } from '../lib/format';
 import { getProductComments } from '../lib/commentApi';
+import { apiBaseUrl, apiRequest } from '../lib/api';
+import { mapProductDetail } from '../lib/productMapper';
+import type { ApiResponse, BackendProductDetail } from '../types/shop';
 
 const Product = () => {
     const params = useParams(); // useParams returns a string based on route definitions
@@ -24,17 +27,49 @@ const Product = () => {
     const [commentTotalElements, setCommentTotalElements] = useState(0);
     const [loadingComments, setLoadingComments] = useState(false);
 
-    const fetchProductData = () => {
-        // Note: In assets.ts we defined `_id`. Ensure usage matches.
-        const product = products.find((item) => item._id === productId);
-        if (product) {
-            setProductData(product);
-            setImage(product.image[0]); // assets.ts uses 'image' not 'images'
-        }
-    };
-
     useEffect(() => {
+        let cancelled = false;
+
+        const fetchProductData = async () => {
+            if (!productId) return;
+
+            const product = products.find((item) => item._id === productId);
+            if (product) {
+                setProductData(product);
+                setImage(product.image[0]);
+                return;
+            }
+
+            if (!apiBaseUrl) {
+                setProductData(null);
+                setImage('');
+                return;
+            }
+
+            try {
+                const response = await apiRequest<ApiResponse<BackendProductDetail>>(`/v1/api/public/product/get-by-code?code=${encodeURIComponent(productId)}`, {
+                    method: 'GET',
+                });
+
+                if (!cancelled && response.data) {
+                    const nextProduct = mapProductDetail(response.data);
+                    setProductData(nextProduct);
+                    setImage(nextProduct.image[0]);
+                }
+            } catch (error) {
+                console.error(error);
+                if (!cancelled) {
+                    setProductData(null);
+                    setImage('');
+                }
+            }
+        };
+
         fetchProductData();
+
+        return () => {
+            cancelled = true;
+        };
     }, [productId, products]);
 
     useEffect(() => {

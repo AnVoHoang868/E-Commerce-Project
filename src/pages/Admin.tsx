@@ -46,13 +46,16 @@ type VoucherForm = {
     endAt: string;
 };
 
-type UserVoucher = {
+type CreatedVoucher = {
     code: string;
-    type: DiscountType;
+    discountType: DiscountType;
+    voucherType: VoucherType;
     value: number;
     minOrderAmount: number;
     status: string;
-    endAt?: string;
+    startAt: string;
+    endAt: string;
+    createdAt: string;
 };
 
 type ProviderOption = {
@@ -152,6 +155,8 @@ const emptyVoucherForm: VoucherForm = {
     endAt: '',
 };
 
+const createdVouchersStorageKey = 'admin-created-vouchers';
+
 const emptyPromotionForm: PromotionForm = {
     value: '',
     scope: 'GLOBAL',
@@ -219,10 +224,15 @@ const Admin = () => {
     const [updatingOrder, setUpdatingOrder] = useState(false);
 
     const [voucherForm, setVoucherForm] = useState<VoucherForm>(emptyVoucherForm);
-    const [voucherSearchMode, setVoucherSearchMode] = useState<'name' | 'id'>('name');
-    const [voucherSearchValue, setVoucherSearchValue] = useState('');
-    const [userVouchers, setUserVouchers] = useState<UserVoucher[]>([]);
-    const [loadingVouchers, setLoadingVouchers] = useState(false);
+    const [createdVouchers, setCreatedVouchers] = useState<CreatedVoucher[]>(() => {
+        try {
+            const stored = localStorage.getItem(createdVouchersStorageKey);
+            const parsed = stored ? JSON.parse(stored) : [];
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    });
     const [creatingVoucher, setCreatingVoucher] = useState(false);
 
     // States for Promotions
@@ -230,8 +240,6 @@ const Admin = () => {
     const [loadingPromotions, setLoadingPromotions] = useState(false);
     const [creatingPromotion, setCreatingPromotion] = useState(false);
     const [promotionForm, setPromotionForm] = useState<PromotionForm>(emptyPromotionForm);
-    const [promotionModal, setPromotionModal] = useState<'create' | 'edit' | null>(null);
-    const [selectedPromoId, setSelectedPromoId] = useState<number | null>(null);
     const [promotionPage, setPromotionPage] = useState(0);
     const [promotionTotalPages, setPromotionTotalPages] = useState(0);
 
@@ -536,11 +544,12 @@ const Admin = () => {
 
         setCreatingVoucher(true);
         try {
-            await apiRequest('/v1/api/admin/voucher/create', {
+            const code = voucherForm.code.trim().toUpperCase();
+            const response = await apiRequest<ApiResponse<Partial<CreatedVoucher>>>('/v1/api/admin/voucher/create', {
                 method: 'POST',
                 token,
                 body: {
-                    code: voucherForm.code.trim().toUpperCase(),
+                    code,
                     discountType: voucherForm.discountType,
                     voucherType: voucherForm.voucherType,
                     value: Number(voucherForm.value),
@@ -548,6 +557,24 @@ const Admin = () => {
                     startAt: startAt.toISOString(),
                     endAt: endAt.toISOString(),
                 },
+            });
+
+            const createdVoucher: CreatedVoucher = {
+                code,
+                discountType: response.data?.discountType || voucherForm.discountType,
+                voucherType: response.data?.voucherType || voucherForm.voucherType,
+                value: Number(response.data?.value ?? voucherForm.value),
+                minOrderAmount: Number(response.data?.minOrderAmount ?? voucherForm.minOrderAmount),
+                status: response.data?.status || (startAt > new Date() ? 'COMMING_SOON' : 'ACTIVE'),
+                startAt: startAt.toISOString(),
+                endAt: response.data?.endAt || endAt.toISOString(),
+                createdAt: new Date().toISOString(),
+            };
+
+            setCreatedVouchers((current) => {
+                const next = [createdVoucher, ...current.filter((voucher) => voucher.code !== createdVoucher.code)];
+                localStorage.setItem(createdVouchersStorageKey, JSON.stringify(next));
+                return next;
             });
 
             toast.success('Đã tạo voucher');
@@ -561,32 +588,9 @@ const Admin = () => {
         }
     };
 
-    const searchUserVouchers = async () => {
-        if (!voucherSearchValue.trim()) {
-            toast.error('Vui lòng nhập thông tin tìm kiếm voucher user');
-            return;
-        }
-
-        setLoadingVouchers(true);
-        try {
-            const queryName = voucherSearchMode === 'name' ? 'name' : 'uid';
-            const endpoint = voucherSearchMode === 'name'
-                ? `/v1/api/admin/user-vouchers/get-by-name?${queryName}=${encodeURIComponent(voucherSearchValue.trim())}`
-                : `/v1/api/admin/user-vouchers/get-by-id?${queryName}=${encodeURIComponent(voucherSearchValue.trim())}`;
-
-            const response = await apiRequest<ApiResponse<UserVoucher[]>>(endpoint, {
-                method: 'GET',
-                token,
-            });
-
-            setUserVouchers(Array.isArray(response.data) ? response.data : []);
-        } catch (error) {
-            console.error(error);
-            const message = error instanceof Error ? error.message : 'Không thể tìm voucher của user';
-            toast.error(message);
-        } finally {
-            setLoadingVouchers(false);
-        }
+    const clearCreatedVouchers = () => {
+        setCreatedVouchers([]);
+        localStorage.removeItem(createdVouchersStorageKey);
     };
 
     const fetchPromotions = async () => {
@@ -666,7 +670,6 @@ const Admin = () => {
             });
 
             toast.success('Đã tạo khuyến mãi mới');
-            setPromotionModal(null);
             setPromotionForm(emptyPromotionForm);
             fetchPromotions();
         } catch (error) {
@@ -681,7 +684,7 @@ const Admin = () => {
     const handleUnavailableFeature = (featureName: string) => {
         toast.info(
             `Tính năng ${featureName} yêu cầu API Backend cung cấp trường ID của Khuyến mãi để định danh. Hiện tại API danh sách chỉ trả về giá trị và thời gian nên tính năng này tạm thời bị giới hạn.`,
-            { duration: 6000 }
+            { autoClose: 6000 }
         );
     };
 
@@ -862,6 +865,11 @@ const Admin = () => {
         event.preventDefault();
         if (!productForm.categoryCode.trim() || !productForm.providerCode.trim() || !productForm.name.trim() || !productForm.price) {
             toast.error('Vui lòng nhập danh mục, nhà cung cấp, tên và giá sản phẩm');
+            return;
+        }
+
+        if (Number(productForm.price) <= 0) {
+            toast.error('Gia san pham phai lon hon 0');
             return;
         }
 
@@ -1547,33 +1555,18 @@ const Admin = () => {
                     </form>
 
                     <div className='border bg-white p-5 sm:p-6 shadow-sm'>
-                        <div className='border-b border-gray-100 pb-5'>
-                            <p className='text-lg font-medium text-gray-900'>Tra cứu voucher của user</p>
-                            <p className='mt-1 text-sm text-gray-500'>Tìm theo tên user hoặc UUID user.</p>
-                        </div>
-
-                        <div className='mt-5 grid gap-3 sm:grid-cols-[160px_1fr_auto]'>
-                            <select
-                                value={voucherSearchMode}
-                                onChange={(event) => setVoucherSearchMode(event.target.value as 'name' | 'id')}
-                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                            >
-                                <option value='name'>Theo tên</option>
-                                <option value='id'>Theo UUID</option>
-                            </select>
-                            <input
-                                value={voucherSearchValue}
-                                onChange={(event) => setVoucherSearchValue(event.target.value)}
-                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                                placeholder={voucherSearchMode === 'name' ? 'Nhập tên user' : 'Nhập UUID user'}
-                            />
+                        <div className='flex items-start justify-between gap-4 border-b border-gray-100 pb-5'>
+                            <div>
+                                <p className='text-lg font-medium text-gray-900'>Voucher đã tạo</p>
+                                <p className='mt-1 text-sm text-gray-500'>Danh sách mã voucher được tạo từ màn hình quản trị.</p>
+                            </div>
                             <button
                                 type='button'
-                                onClick={searchUserVouchers}
-                                disabled={loadingVouchers}
-                                className='bg-black px-5 py-3 text-sm text-white disabled:bg-gray-300'
+                                onClick={clearCreatedVouchers}
+                                disabled={createdVouchers.length === 0}
+                                className='border border-gray-300 px-4 py-2 text-xs font-medium text-gray-700 hover:border-black disabled:text-gray-300'
                             >
-                                Tìm
+                                Dọn danh sách
                             </button>
                         </div>
 
@@ -1586,24 +1579,27 @@ const Admin = () => {
                                         <th className='py-3 font-medium'>Giá trị</th>
                                         <th className='py-3 font-medium'>Đơn tối thiểu</th>
                                         <th className='py-3 font-medium'>Trạng thái</th>
-                                        <th className='py-3 font-medium'>Hết hạn</th>
+                                        <th className='py-3 font-medium'>Thời gian</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {userVouchers.length === 0 ? (
+                                    {createdVouchers.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className='py-10 text-center text-gray-500'>
-                                                {loadingVouchers ? 'Đang tải voucher...' : 'Chưa có dữ liệu voucher user'}
+                                                Chưa có voucher nào được tạo từ màn hình này
                                             </td>
                                         </tr>
-                                    ) : userVouchers.map((voucher) => (
-                                        <tr key={`${voucher.code}-${voucher.status}`} className='border-b last:border-b-0'>
+                                    ) : createdVouchers.map((voucher) => (
+                                        <tr key={`${voucher.code}-${voucher.createdAt}`} className='border-b last:border-b-0'>
                                             <td className='py-4 font-medium text-gray-900'>{voucher.code}</td>
-                                            <td className='py-4 text-gray-600'>{voucher.type}</td>
-                                            <td className='py-4 text-gray-900'>{voucher.type === 'PERCENT' ? `${voucher.value}%` : formatCurrency(voucher.value)}</td>
+                                            <td className='py-4 text-gray-600'>{voucher.voucherType}</td>
+                                            <td className='py-4 text-gray-900'>{voucher.discountType === 'PERCENT' ? `${voucher.value}%` : formatCurrency(voucher.value)}</td>
                                             <td className='py-4 text-gray-600'>{formatCurrency(voucher.minOrderAmount)}</td>
                                             <td className='py-4'><span className='bg-green-50 px-3 py-1 text-xs text-green-700'>{voucher.status}</span></td>
-                                            <td className='py-4 text-gray-600'>{formatDate(voucher.endAt)}</td>
+                                            <td className='py-4 text-gray-600'>
+                                                <p>{formatDate(voucher.startAt)}</p>
+                                                <p className='mt-1 text-xs text-gray-400'>{formatDate(voucher.endAt)}</p>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -2126,7 +2122,7 @@ const Admin = () => {
 
                             <div className='mt-4 space-y-3'>
                                 {itemRows.map((row, index) => (
-                                    <div key={`${row.size}-${index}`} className='grid grid-cols-3 gap-2'>
+                                    <div key={`${row.size}-${index}`} className='grid grid-cols-[1.2fr_1.2fr_1fr_auto] gap-2'>
                                         <select
                                             value={row.size}
                                             onChange={(event) => updateItemRow(index, { size: event.target.value as ProductSize })}
@@ -2154,6 +2150,15 @@ const Admin = () => {
                                             inputMode='numeric'
                                             placeholder='SL'
                                         />
+                                        <button
+                                            type='button'
+                                            onClick={() => updateSingleItemQuantity(row)}
+                                            disabled={submittingProductAdmin}
+                                            className='min-w-11 bg-black px-4 text-lg font-medium text-white disabled:bg-gray-300'
+                                            title='Cáº­p nháº­t sá»‘ lÆ°á»£ng'
+                                        >
+                                            +
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -2280,7 +2285,7 @@ const Admin = () => {
                                                 value={productForm.productCode}
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, productCode: event.target.value }))}
                                                 disabled={productModal === 'edit-product'}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
+                                                className={`border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black ${productModal === 'create-product' ? 'hidden' : ''}`}
                                                 placeholder='Mã sản phẩm'
                                             />
                                             <input
@@ -2308,7 +2313,7 @@ const Admin = () => {
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, price: event.target.value }))}
                                                 className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                                 type='number'
-                                                min={0}
+                                                min={productModal === 'create-product' ? 1 : 0}
                                                 placeholder='Giá bán'
                                             />
                                             <input
@@ -2320,7 +2325,7 @@ const Admin = () => {
                                             <input
                                                 value={productForm.sold}
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, sold: event.target.value }))}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
+                                                className={`border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black ${productModal === 'create-product' ? 'hidden' : ''}`}
                                                 type='number'
                                                 min={0}
                                                 placeholder='Đã bán'
@@ -2328,7 +2333,7 @@ const Admin = () => {
                                             <input
                                                 value={productForm.rate}
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, rate: event.target.value }))}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
+                                                className={`border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black ${productModal === 'create-product' ? 'hidden' : ''}`}
                                                 type='number'
                                                 min={0}
                                                 max={5}
@@ -2338,7 +2343,7 @@ const Admin = () => {
                                             <input
                                                 value={productForm.videoUrl}
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, videoUrl: event.target.value }))}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black sm:col-span-2'
+                                                className={`border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black sm:col-span-2 ${productModal === 'create-product' ? 'hidden' : ''}`}
                                                 placeholder='URL video'
                                             />
                                             <textarea
@@ -2397,6 +2402,7 @@ const Admin = () => {
                                                         {itemStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                                                     </select>
                                                     <input
+                                                        value={row.quantity}
                                                         onChange={(event) => {
                                                             const value = event.target.value;
                                                             if (/^\d*$/.test(value)) {
@@ -2408,6 +2414,15 @@ const Admin = () => {
                                                         inputMode='numeric'
                                                         placeholder='SL'
                                                     />
+                                                    <button
+                                                        type='button'
+                                                        onClick={() => updateSingleItemQuantity(row)}
+                                                        disabled={submittingProductAdmin}
+                                                        className='min-w-11 bg-black px-4 text-lg font-medium text-white disabled:bg-gray-300'
+                                                        title='Cáº­p nháº­t sá»‘ lÆ°á»£ng'
+                                                    >
+                                                        +
+                                                    </button>
                                                 </div>
                                             ))}
                                         </div>

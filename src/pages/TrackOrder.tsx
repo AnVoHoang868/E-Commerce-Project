@@ -196,6 +196,8 @@ const TrackOrder = () => {
         }
     };
 
+    void completeOrder;
+
     if (!token) {
         return <Navigate to='/login' replace />;
     }

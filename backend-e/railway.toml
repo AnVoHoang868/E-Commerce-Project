@@ -1,8 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "Dockerfile"
-
-[deploy]
-startCommand = "java -jar app.jar --spring.profiles.active=prod"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3

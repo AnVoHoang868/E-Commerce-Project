@@ -4,8 +4,8 @@ import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { assets } from "../assets/assets";
 import { apiBaseUrl, apiRequest } from "../lib/api";
-import { mapBackendCart, mapProductDetail, mapProductSummary } from "../lib/productMapper";
-import type { AccountRole, ApiResponse, BackendCart, BackendProductDetail, BackendProductSummary, CartItems, PageResponse, Product, UserProfile, UserProfileUpdatePayload } from "../types/shop";
+import { mapBackendCart, mapBackendCartDetails, mapProductDetail, mapProductSummary } from "../lib/productMapper";
+import type { AccountRole, ApiResponse, BackendCart, BackendProductDetail, BackendProductSummary, CartDetails, CartItems, PageResponse, Product, UserProfile, UserProfileUpdatePayload } from "../types/shop";
 
 export const ShopContext = createContext<any>(null);
 
@@ -132,6 +132,7 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
     const [search, setSearch] = useState('');
     const [showSearch, setShowSearch] = useState(false);
     const [cartItems, setCartItems] = useState<CartItems>({});
+    const [cartDetails, setCartDetails] = useState<CartDetails>({});
     const [products, setProducts] = useState<Product[]>(fallbackProducts);
     const [token, setToken] = useState(localStorage.getItem('token') || '');
     const [accountRole, setAccountRole] = useState<AccountRole | null>(() => getRoleFromToken(localStorage.getItem('token') || ''));
@@ -188,6 +189,7 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
 
             if (data.success !== false && data.data) {
                 setCartItems(mapBackendCart(data.data));
+                setCartDetails(mapBackendCartDetails(data.data));
             }
         } catch (error) {
             console.error(error);
@@ -252,6 +254,9 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
                     token,
                     body: { productCode: itemId, size, quantity: 1 },
                 });
+                await getUserCart(token);
+                toast.success('Thêm vào giỏ hàng thành công');
+                return;
             } catch (error) {
                 console.error(error);
                 const message = error instanceof Error ? error.message : 'Không thể đồng bộ giỏ hàng với backend';
@@ -261,6 +266,8 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         }
 
         const cartData = structuredClone(cartItems);
+        const detailData = structuredClone(cartDetails);
+        const product = products.find((item) => item._id === itemId);
 
         if (cartData[itemId]) {
             if (cartData[itemId][size]) {
@@ -275,6 +282,19 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
             cartData[itemId][size] = 1;
         }
         setCartItems(cartData);
+        if (product) {
+            if (!detailData[itemId]) detailData[itemId] = {};
+            detailData[itemId][size] = {
+                productCode: itemId,
+                productName: product.name,
+                imgUrl: product.image[0],
+                size,
+                originalPrice: product.originalPrice ?? product.price,
+                finalPrice: product.finalPrice ?? product.price,
+                quantity: cartData[itemId][size],
+            };
+            setCartDetails(detailData);
+        }
 
         toast.success('Thêm vào giỏ hàng thành công');
     }
@@ -303,6 +323,15 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         const cartData = structuredClone(cartItems);
         cartData[itemId][size] = quantity;
         setCartItems(cartData);
+        setCartDetails((current) => {
+            const next = structuredClone(current);
+            if (next[itemId]?.[size]) {
+                next[itemId][size].quantity = quantity;
+                const price = next[itemId][size].finalPrice ?? next[itemId][size].originalPrice ?? 0;
+                next[itemId][size].lineTotal = price * quantity;
+            }
+            return next;
+        });
 
         if (token) {
             try {
@@ -334,16 +363,20 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         }
 
         const cartData = structuredClone(cartItems);
+        const detailData = structuredClone(cartDetails);
 
         if (cartData[itemId]) {
             delete cartData[itemId][size];
+            delete detailData[itemId]?.[size];
 
             if (Object.keys(cartData[itemId]).length === 0) {
                 delete cartData[itemId];
+                delete detailData[itemId];
             }
         }
 
         setCartItems(cartData);
+        setCartDetails(detailData);
         toast.success('Đã xóa sản phẩm khỏi giỏ hàng');
     }
 
@@ -353,8 +386,10 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
             let itemInfo = products.find((product) => product._id === items);
             for (const item in cartItems[items]) {
                 try {
-                    if (cartItems[items][item] > 0 && itemInfo) {
-                        totalAmount += itemInfo.price * cartItems[items][item];
+                    if (cartItems[items][item] > 0) {
+                        const detail = cartDetails[items]?.[item];
+                        const price = detail?.finalPrice ?? itemInfo?.price ?? 0;
+                        totalAmount += price * cartItems[items][item];
                     }
                 } catch (error) {
 
@@ -379,13 +414,14 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
             setAccountRole(null);
             setUser(null);
             setCartItems({});
+            setCartDetails({});
         }
     }, [getUserCart, getUserProfile, token]);
 
     const value = {
         products, currency, delivery_fee,
         search, setSearch, showSearch, setShowSearch,
-        cartItems, addToCart,
+        cartItems, cartDetails, addToCart,
         getCartCount, updateQuantity, removeFromCart, getCartAmount, refreshCart,
         token, setToken, accountRole, isAdmin: accountRole === 'ADMIN', user, updateUserProfile, loadingProducts,
         navigate

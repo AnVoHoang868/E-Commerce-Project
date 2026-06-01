@@ -18,6 +18,22 @@ export type Product = {
 
 export type CartItems = Record<string, Record<string, number>>;
 
+export type BackendCartItem = {
+    productCode: string;
+    productName?: string;
+    imgUrl?: string;
+    sizeId?: number;
+    size: string;
+    originalPrice?: number;
+    finalPrice?: number;
+    discountType?: string;
+    discountValue?: number;
+    quantity: number;
+    lineTotal?: number;
+};
+
+export type CartDetails = Record<string, Record<string, BackendCartItem>>;
+
 export type ApiResponse<T> = {
     success: boolean;
     message?: string;
@@ -106,11 +122,7 @@ export type BackendProductDetail = {
 };
 
 export type BackendCart = {
-    items?: Array<{
-        productCode: string;
-        size: string;
-        quantity: number;
-    }>;
+    items?: BackendCartItem[];
     totalItems: number;
     totalAmount: number;
 };
@@ -219,7 +231,7 @@ export type CreateOrderPayload = {
     totalPrice: number;
     voucherCode?: string;
     voucherDiscount?: number;
-    finalPrice: number;
+    finalPrice?: number;
     paymentType: 'PAYMENT_UPON_DELIVER' | 'ONLINE';
     note?: string;
 };

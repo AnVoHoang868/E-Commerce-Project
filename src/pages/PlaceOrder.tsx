@@ -9,6 +9,7 @@ import { formatCurrency } from '../lib/format';
 import { getMyVouchers } from '../lib/voucherApi';
 import type {
     ApiResponse,
+    CartDetails,
     CartItems,
     CreateOrderPayload,
     CreateOrderResponse,
@@ -20,6 +21,19 @@ import type {
 
 type PaymentMethod = 'PAYMENT_UPON_DELIVER' | 'ONLINE';
 type ReceiverMode = 'select' | 'create';
+type AppliedVoucher = {
+    code: string;
+    voucher?: UserVoucher;
+};
+type CreatedVoucherCache = {
+    code: string;
+    discountType: 'PERCENT' | 'FIXED';
+    value: number;
+    minOrderAmount: number;
+    status?: string;
+    startAt?: string;
+    endAt?: string;
+};
 
 const emptyReceiverForm: ReceiverCreatePayload = {
     fName: '',
@@ -74,12 +88,35 @@ const calculateVoucherDiscount = (voucher: UserVoucher, amount: number) => {
 const voucherValueLabel = (voucher: UserVoucher) =>
     voucher.type === 'PERCENT' ? `${voucher.value}%` : formatCurrency(voucher.value);
 
+const getCachedCreatedVoucher = (code: string): UserVoucher | null => {
+    try {
+        const stored = localStorage.getItem('admin-created-vouchers');
+        const vouchers = stored ? JSON.parse(stored) : [];
+        if (!Array.isArray(vouchers)) return null;
+
+        const voucher = vouchers.find((item: CreatedVoucherCache) => item.code?.toUpperCase() === code);
+        if (!voucher) return null;
+
+        return {
+            code: voucher.code.toUpperCase(),
+            type: voucher.discountType,
+            value: Number(voucher.value || 0),
+            minOrderAmount: Number(voucher.minOrderAmount || 0),
+            status: voucher.status || 'ACTIVE',
+            endAt: voucher.endAt,
+        };
+    } catch {
+        return null;
+    }
+};
+
 const PlaceOrder = () => {
     const context = useContext(ShopContext);
     const token = context?.token as string;
     const navigate = context?.navigate;
     const products = (context?.products || []) as Product[];
     const cartItems = (context?.cartItems || {}) as CartItems;
+    const cartDetails = (context?.cartDetails || {}) as CartDetails;
     const refreshCart = context?.refreshCart as (() => Promise<void>) | undefined;
 
     const [receivers, setReceivers] = useState<Receiver[]>([]);
@@ -95,7 +132,7 @@ const PlaceOrder = () => {
     const [myVouchers, setMyVouchers] = useState<UserVoucher[]>([]);
     const [loadingVouchers, setLoadingVouchers] = useState(false);
     const [voucherInput, setVoucherInput] = useState('');
-    const [appliedVoucher, setAppliedVoucher] = useState<UserVoucher | null>(null);
+    const [appliedVoucher, setAppliedVoucher] = useState<AppliedVoucher | null>(null);
 
     const orderItems = useMemo(() => {
         return Object.entries(cartItems).flatMap(([productCode, sizes]) =>
@@ -103,10 +140,10 @@ const PlaceOrder = () => {
                 .filter(([, quantity]) => quantity > 0)
                 .map(([size, quantity]) => {
                     const product = products.find((item) => item._id === productCode);
-                    if (!product) return null;
+                    const cartDetail = cartDetails[productCode]?.[size];
 
-                    const originalPrice = product.originalPrice ?? product.price;
-                    const finalPrice = product.finalPrice ?? product.price;
+                    const originalPrice = cartDetail?.originalPrice ?? product?.originalPrice ?? product?.price ?? 0;
+                    const finalPrice = cartDetail?.finalPrice ?? product?.finalPrice ?? product?.price ?? originalPrice;
 
                     return {
                         productCode,
@@ -114,22 +151,24 @@ const PlaceOrder = () => {
                         quantity,
                         originalPrice,
                         finalPrice,
-                        product,
+                        name: cartDetail?.productName || product?.name || productCode,
+                        image: cartDetail?.imgUrl || product?.image[0] || assets.p_img1,
                     };
                 })
-                .filter(Boolean)
         ) as Array<{
             productCode: string;
             size: string;
             quantity: number;
             originalPrice: number;
             finalPrice: number;
-            product: Product;
+            name: string;
+            image: string;
         }>;
-    }, [cartItems, products]);
+    }, [cartDetails, cartItems, products]);
 
     const subtotal = orderItems.reduce((total, item) => total + item.finalPrice * item.quantity, 0);
-    const voucherDiscount = appliedVoucher ? calculateVoucherDiscount(appliedVoucher, subtotal) : 0;
+    const voucherDiscount = appliedVoucher?.voucher ? calculateVoucherDiscount(appliedVoucher.voucher, subtotal) : 0;
+    const manualVoucherPending = Boolean(appliedVoucher && !appliedVoucher.voucher);
     const orderFinalPrice = roundMoney(Math.max(subtotal - voucherDiscount, 0));
     const selectedReceiver = receivers.find((receiver) => receiver.id === selectedReceiverId);
     const receiverApiMissingId = receivers.length > 0 && receivers.some((receiver) => receiver.id === undefined || receiver.id === null);
@@ -193,7 +232,7 @@ const PlaceOrder = () => {
     }, [token]);
 
     useEffect(() => {
-        if (appliedVoucher && subtotal < Number(appliedVoucher.minOrderAmount || 0)) {
+        if (appliedVoucher?.voucher && subtotal < Number(appliedVoucher.voucher.minOrderAmount || 0)) {
             setAppliedVoucher(null);
         }
     }, [appliedVoucher, subtotal]);
@@ -201,30 +240,33 @@ const PlaceOrder = () => {
     const handleApplyVoucher = (code = voucherInput) => {
         const normalizedCode = code.trim().toUpperCase();
         if (!normalizedCode) {
-            toast.error('Vui long nhap ma voucher');
+            toast.error('Vui lòng nhập mã voucher');
             return;
         }
 
-        const voucher = myVouchers.find((item) => item.code.toUpperCase() === normalizedCode);
+        const voucher = myVouchers.find((item) => item.code.toUpperCase() === normalizedCode)
+            || getCachedCreatedVoucher(normalizedCode);
         if (!voucher) {
-            toast.error('Ma voucher chua co trong danh sach voucher kha dung cua ban');
+            setAppliedVoucher({ code: normalizedCode });
+            setVoucherInput(normalizedCode);
+            toast.info(`Đã nhận mã voucher ${normalizedCode}. Chưa có dữ liệu giảm giá ở FE, hệ thống sẽ kiểm tra khi tạo đơn.`);
             return;
         }
 
         if (subtotal < Number(voucher.minOrderAmount || 0)) {
-            toast.error(`Don hang can toi thieu ${formatCurrency(voucher.minOrderAmount)} de ap dung voucher nay`);
+            toast.error(`Đơn hàng cần tối thiểu ${formatCurrency(voucher.minOrderAmount)} để áp dụng voucher này`);
             return;
         }
 
         const discount = calculateVoucherDiscount(voucher, subtotal);
         if (discount <= 0) {
-            toast.error('Voucher khong tao ra gia tri giam hop le cho don hang nay');
+            toast.error('Voucher không tạo ra giá trị giảm hợp lệ cho đơn hàng này');
             return;
         }
 
-        setAppliedVoucher(voucher);
+        setAppliedVoucher({ code: voucher.code, voucher });
         setVoucherInput(voucher.code);
-        toast.success(`Da ap dung voucher ${voucher.code}`);
+        toast.success(`Đã áp dụng voucher ${voucher.code}`);
     };
 
     const handleRemoveVoucher = () => {
@@ -479,9 +521,11 @@ const PlaceOrder = () => {
                     finalPrice: item.finalPrice,
                 })),
                 totalPrice: subtotal,
-                voucherCode: appliedVoucher?.code,
-                voucherDiscount,
-                finalPrice: orderFinalPrice,
+                voucherCode: appliedVoucher?.code || undefined,
+                ...(manualVoucherPending ? {} : {
+                    voucherDiscount,
+                    finalPrice: orderFinalPrice,
+                }),
                 paymentType,
                 note: note.trim() || undefined,
             };
@@ -744,9 +788,9 @@ const PlaceOrder = () => {
                             <div className='mt-5 divide-y'>
                                 {orderItems.map((item) => (
                                     <div key={`${item.productCode}-${item.size}`} className='py-4 flex gap-4'>
-                                        <img className='h-20 w-16 border object-cover' src={item.product.image[0]} alt={item.product.name} />
+                                        <img className='h-20 w-16 border object-cover' src={item.image} alt={item.name} />
                                         <div className='min-w-0 flex-1'>
-                                            <p className='text-sm font-medium text-gray-900'>{item.product.name}</p>
+                                            <p className='text-sm font-medium text-gray-900'>{item.name}</p>
                                             <p className='mt-1 text-xs uppercase tracking-[0.16em] text-gray-400'>Size {item.size}</p>
                                             <div className='mt-2 flex items-center justify-between text-sm'>
                                                 <span className='text-gray-500'>SL {item.quantity}</span>
@@ -826,7 +870,7 @@ const PlaceOrder = () => {
                             <div className='flex items-start justify-between gap-4'>
                                 <div>
                                     <p className='text-sm font-semibold text-gray-900'>Voucher</p>
-                                    <p className='mt-1 text-xs text-gray-500'>Chon voucher kha dung trong tai khoan cua ban.</p>
+                                    <p className='mt-1 text-xs text-gray-500'>Nhập mã voucher hoặc chọn voucher khả dụng của bạn.</p>
                                 </div>
                                 <button
                                     type='button'
@@ -864,6 +908,14 @@ const PlaceOrder = () => {
                                 )}
                             </div>
 
+                            {appliedVoucher && (
+                                <div className='mt-3 border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800'>
+                                    {appliedVoucher.voucher
+                                        ? `Đang áp dụng ${appliedVoucher.code}: giảm ${formatCurrency(voucherDiscount)}`
+                                        : `Đang dùng mã ${appliedVoucher.code}. Hệ thống sẽ xác thực và tính giảm giá khi tạo đơn.`}
+                                </div>
+                            )}
+
                             <div className='mt-4 grid gap-2'>
                                 {myVouchers.length === 0 ? (
                                     <p className='text-sm text-gray-500'>
@@ -896,12 +948,6 @@ const PlaceOrder = () => {
                                     );
                                 })}
                             </div>
-
-                            {appliedVoucher && (
-                                <div className='mt-4 border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800'>
-                                    Dang ap dung {appliedVoucher.code}: giam {formatCurrency(voucherDiscount)}
-                                </div>
-                            )}
                         </div>
 
                         <div className='mt-6 bg-gray-50 px-4 py-4 text-sm'>
@@ -911,7 +957,7 @@ const PlaceOrder = () => {
                             </div>
                             <div className='mt-2 flex justify-between text-gray-600'>
                                 <span>Giảm giá</span>
-                                <span>{formatCurrency(voucherDiscount)}</span>
+                                <span>{manualVoucherPending ? 'Chờ hệ thống xác thực' : formatCurrency(voucherDiscount)}</span>
                             </div>
                             <div className='mt-3 flex justify-between border-t border-gray-200 pt-3 text-base font-medium text-gray-900'>
                                 <span>Tổng tạo đơn</span>

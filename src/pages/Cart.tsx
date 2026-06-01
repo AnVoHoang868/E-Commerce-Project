@@ -3,13 +3,14 @@ import { ShopContext } from '../context/ShopContext';
 import Title from '../components/Title';
 import CartTotal from '../components/CartTotal';
 import { assets } from '../assets/assets';
-import type { CartItems, Product } from '../types/shop';
+import type { CartDetails, CartItems, Product } from '../types/shop';
 import { formatCurrency } from '../lib/format';
 
 const Cart = () => {
     const context = useContext(ShopContext);
     const products = (context?.products || []) as Product[];
     const cartItems = (context?.cartItems || {}) as CartItems;
+    const cartDetails = (context?.cartDetails || {}) as CartDetails;
     const updateQuantity = context?.updateQuantity;
     const removeFromCart = context?.removeFromCart;
     const navigate = context?.navigate;
@@ -38,19 +39,19 @@ const Cart = () => {
                     <div>
                         {cartData.map((item) => {
                             const productData = products.find((product) => product._id === item.productId);
-
-                            if (!productData) {
-                                return null;
-                            }
+                            const cartDetail = cartDetails[item.productId]?.[item.size];
+                            const productName = cartDetail?.productName || productData?.name || item.productId;
+                            const productImage = cartDetail?.imgUrl || productData?.image[0] || assets.p_img1;
+                            const productPrice = cartDetail?.finalPrice ?? productData?.price ?? 0;
 
                             return (
                                 <div key={`${item.productId}-${item.size}`} className='py-4 border-t border-b text-gray-700 grid grid-cols-[4fr_1fr_0.5fr] sm:grid-cols-[4fr_2fr_0.5fr] items-center gap-4'>
                                     <div className='flex items-start gap-6'>
-                                        <img className='w-16 sm:w-20' src={productData.image[0]} alt={productData.name} />
+                                        <img className='w-16 sm:w-20' src={productImage} alt={productName} />
                                         <div>
-                                            <p className='text-xs sm:text-lg font-medium'>{productData.name}</p>
+                                            <p className='text-xs sm:text-lg font-medium'>{productName}</p>
                                             <div className='flex items-center gap-5 mt-2'>
-                                                <p>{formatCurrency(productData.price)}</p>
+                                                <p>{formatCurrency(productPrice)}</p>
                                                 <p className='px-2 sm:px-3 sm:py-1 border bg-slate-50'>{item.size}</p>
                                             </div>
                                         </div>

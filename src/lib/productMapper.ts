@@ -1,5 +1,5 @@
 import { assets } from '../assets/assets';
-import type { BackendCart, BackendProductDetail, BackendProductSummary, CartItems, Product } from '../types/shop';
+import type { BackendCart, BackendProductDetail, BackendProductSummary, CartDetails, CartItems, Product } from '../types/shop';
 
 const fallbackImage = assets.p_img1;
 
@@ -56,4 +56,18 @@ export const mapBackendCart = (cart: BackendCart): CartItems => {
     });
 
     return cartItems;
+};
+
+export const mapBackendCartDetails = (cart: BackendCart): CartDetails => {
+    const cartDetails: CartDetails = {};
+
+    cart.items?.forEach((item) => {
+        if (!cartDetails[item.productCode]) {
+            cartDetails[item.productCode] = {};
+        }
+
+        cartDetails[item.productCode][item.size] = item;
+    });
+
+    return cartDetails;
 };
