@@ -6,8 +6,9 @@ import { ShopContext } from '../context/ShopContext';
 import { apiRequest } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import type { ApiResponse, BackendProductDetail, BackendProductSummary, OrderDetail, OrderStatus, OrderSummary, PageResponse, Product } from '../types/shop';
+import AdminUserManagement from '../components/AdminUserManagement';
 
-type AdminTab = 'orders' | 'vouchers' | 'products' | 'providers' | 'promotions';
+type AdminTab = 'orders' | 'vouchers' | 'products' | 'providers' | 'promotions' | 'users';
 type DiscountType = 'PERCENT' | 'FIXED';
 type VoucherType = 'NEWBIE' | 'GLOBAL';
 type ProductSize = 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'XXXL';
@@ -36,10 +37,13 @@ type PromotionForm = {
     categoryCodes: string;
 };
 
+type RankTypeOption = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Ultimate';
+
 type VoucherForm = {
     code: string;
     discountType: DiscountType;
     voucherType: VoucherType;
+    rankType: RankTypeOption;
     value: string;
     minOrderAmount: string;
     startAt: string;
@@ -50,6 +54,7 @@ type CreatedVoucher = {
     code: string;
     discountType: DiscountType;
     voucherType: VoucherType;
+    rankType: RankTypeOption;
     value: number;
     minOrderAmount: number;
     status: string;
@@ -149,6 +154,7 @@ const emptyVoucherForm: VoucherForm = {
     code: '',
     discountType: 'PERCENT',
     voucherType: 'GLOBAL',
+    rankType: 'Bronze',
     value: '',
     minOrderAmount: '',
     startAt: '',
@@ -552,6 +558,7 @@ const Admin = () => {
                     code,
                     discountType: voucherForm.discountType,
                     voucherType: voucherForm.voucherType,
+                    rankType: voucherForm.rankType,
                     value: Number(voucherForm.value),
                     minOrderAmount: Number(voucherForm.minOrderAmount),
                     startAt: startAt.toISOString(),
@@ -563,6 +570,7 @@ const Admin = () => {
                 code,
                 discountType: response.data?.discountType || voucherForm.discountType,
                 voucherType: response.data?.voucherType || voucherForm.voucherType,
+                rankType: voucherForm.rankType,
                 value: Number(response.data?.value ?? voucherForm.value),
                 minOrderAmount: Number(response.data?.minOrderAmount ?? voucherForm.minOrderAmount),
                 status: response.data?.status || (startAt > new Date() ? 'COMMING_SOON' : 'ACTIVE'),
@@ -1229,7 +1237,7 @@ const Admin = () => {
                     </div>
                 </div>
 
-                <div className='grid grid-cols-3 sm:grid-cols-5 gap-2 border bg-white p-1'>
+                <div className='grid grid-cols-3 sm:grid-cols-6 gap-2 border bg-white p-1'>
                     <button
                         type='button'
                         onClick={() => setActiveTab('orders')}
@@ -1264,6 +1272,13 @@ const Admin = () => {
                         className={`px-5 py-2.5 text-sm font-medium transition-all ${activeTab === 'providers' ? 'bg-black text-white' : 'text-gray-500 hover:text-black'}`}
                     >
                         Nhà cung cấp
+                    </button>
+                    <button
+                        type='button'
+                        onClick={() => setActiveTab('users')}
+                        className={`px-5 py-2.5 text-sm font-medium transition-all ${activeTab === 'users' ? 'bg-black text-white' : 'text-gray-500 hover:text-black'}`}
+                    >
+                        Người dùng
                     </button>
                 </div>
             </div>
@@ -1551,6 +1566,18 @@ const Admin = () => {
                                 <option value='GLOBAL'>Áp dụng toàn hệ thống</option>
                                 <option value='NEWBIE'>Khách hàng mới</option>
                             </select>
+                            <select
+                                value={voucherForm.rankType}
+                                onChange={(event) => setVoucherForm((prev) => ({ ...prev, rankType: event.target.value as RankTypeOption }))}
+                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black sm:col-span-2'
+                            >
+                                <option value='Bronze'>Bronze</option>
+                                <option value='Silver'>Silver</option>
+                                <option value='Gold'>Gold</option>
+                                <option value='Platinum'>Platinum</option>
+                                <option value='Diamond'>Diamond</option>
+                                <option value='Ultimate'>Ultimate</option>
+                            </select>
                             <input
                                 value={voucherForm.value}
                                 onChange={(event) => setVoucherForm((prev) => ({ ...prev, value: event.target.value }))}
@@ -1622,6 +1649,7 @@ const Admin = () => {
                                     <tr className='border-b text-xs uppercase tracking-[0.16em] text-gray-400'>
                                         <th className='py-3 font-medium'>Mã</th>
                                         <th className='py-3 font-medium'>Loại</th>
+                                        <th className='py-3 font-medium'>Rank</th>
                                         <th className='py-3 font-medium'>Giá trị</th>
                                         <th className='py-3 font-medium'>Đơn tối thiểu</th>
                                         <th className='py-3 font-medium'>Trạng thái</th>
@@ -1631,7 +1659,7 @@ const Admin = () => {
                                 <tbody>
                                     {createdVouchers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={6} className='py-10 text-center text-gray-500'>
+                                            <td colSpan={7} className='py-10 text-center text-gray-500'>
                                                 Chưa có voucher nào được tạo từ màn hình này
                                             </td>
                                         </tr>
@@ -1639,6 +1667,7 @@ const Admin = () => {
                                         <tr key={`${voucher.code}-${voucher.createdAt}`} className='border-b last:border-b-0'>
                                             <td className='py-4 font-medium text-gray-900'>{voucher.code}</td>
                                             <td className='py-4 text-gray-600'>{voucher.voucherType}</td>
+                                            <td className='py-4 text-gray-600'>{(voucher as any).rankType || 'Bronze'}</td>
                                             <td className='py-4 text-gray-900'>{voucher.discountType === 'PERCENT' ? `${voucher.value}%` : formatCurrency(voucher.value)}</td>
                                             <td className='py-4 text-gray-600'>{formatCurrency(voucher.minOrderAmount)}</td>
                                             <td className='py-4'><span className='bg-green-50 px-3 py-1 text-xs text-green-700'>{voucher.status}</span></td>
@@ -2586,7 +2615,7 @@ const Admin = () => {
                         </div>
                     )}
                 </div>
-            ) : (
+            ) : activeTab === 'providers' ? (
                 <div className='grid xl:grid-cols-[0.95fr_1.05fr] gap-8 items-start'>
                     <form
                         onSubmit={(event) => {
@@ -2739,7 +2768,9 @@ const Admin = () => {
                         </div>
                     </div>
                 </div>
-            )}
+            ) : activeTab === 'users' ? (
+                <AdminUserManagement token={token} />
+            ) : null}
         </div>
     );
 };

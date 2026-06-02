@@ -3,10 +3,27 @@ import { Navigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { ShopContext } from '../context/ShopContext';
 import Title from '../components/Title';
-import type { RankType, UserProfile, UserProfileUpdatePayload } from '../types/shop';
+import { apiRequest } from '../lib/api';
+import type { ApiResponse, RankType, UserProfile, UserProfileUpdatePayload } from '../types/shop';
 import { formatCurrency } from '../lib/format';
 
 const rankTiers: RankType[] = ['Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Ultimate'];
+
+type UploadImageResponse = ApiResponse<string | { imageUrl?: string; url?: string }> & {
+    imageUrl?: string;
+    url?: string;
+};
+
+const getUploadImageUrl = (response: UploadImageResponse) => {
+    const data = response.data;
+
+    return (
+        (typeof data === 'object' && data !== null && (data.imageUrl || data.url)) ||
+        (typeof data === 'string' ? data : undefined) ||
+        response.imageUrl ||
+        response.url
+    );
+};
 
 const rankConfig: Record<RankType, { emoji: string; bg: string; text: string; gradient: string }> = {
     Bronze: { emoji: '🥉', bg: 'bg-amber-100', text: 'text-amber-800', gradient: 'from-amber-600 to-amber-400' },
@@ -31,6 +48,7 @@ const Profile = () => {
     const updateUserProfile = context?.updateUserProfile as ((payload: UserProfileUpdatePayload) => Promise<unknown>) | undefined;
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
     const [formData, setFormData] = useState<UserProfileUpdatePayload>({
         id: '',
         firstName: '',
@@ -89,6 +107,51 @@ const Profile = () => {
             avatar: avatar || '',
         });
         setIsEditing(false);
+    };
+
+    const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        const toastId = toast.loading('Đang tải ảnh đại diện lên...');
+        setIsUploadingAvatar(true);
+        try {
+            const uploadData = new FormData();
+            uploadData.append('image', file);
+            uploadData.append('file', file);
+
+            const response = await apiRequest<UploadImageResponse>('/v1/api/admin/upload/image', {
+                method: 'POST',
+                token,
+                body: uploadData,
+            });
+
+            const imageUrl = getUploadImageUrl(response);
+
+            if (typeof imageUrl !== 'string' || !imageUrl) {
+                throw new Error('Định dạng phản hồi API upload ảnh không đúng');
+            }
+
+            handleChange('avatar', imageUrl);
+            toast.update(toastId, {
+                render: 'Tải ảnh đại diện thành công',
+                type: 'success',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : 'Không thể tải ảnh đại diện lên';
+            toast.update(toastId, {
+                render: message,
+                type: 'error',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } finally {
+            setIsUploadingAvatar(false);
+        }
     };
 
     const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -289,13 +352,25 @@ const Profile = () => {
                             </div>
 
                             <div>
-                                <label className='text-xs uppercase tracking-[0.16em] text-gray-500'>URL ảnh đại diện</label>
-                                <input
-                                    value={formData.avatar || ''}
-                                    onChange={(event) => handleChange('avatar', event.target.value)}
-                                    className='mt-2 w-full border border-gray-300 px-4 py-3 outline-none transition-all focus:border-black focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]'
-                                    placeholder='https://example.com/avatar.jpg'
-                                />
+                                <label className='text-xs uppercase tracking-[0.16em] text-gray-500'>Ảnh đại diện</label>
+                                <div className='mt-2 flex flex-col sm:flex-row gap-3'>
+                                    <input
+                                        value={formData.avatar || ''}
+                                        onChange={(event) => handleChange('avatar', event.target.value)}
+                                        className='w-full border border-gray-300 px-4 py-3 outline-none transition-all focus:border-black focus:shadow-[0_0_0_3px_rgba(0,0,0,0.06)]'
+                                        placeholder='https://example.com/avatar.jpg'
+                                    />
+                                    <label className='shrink-0 border border-gray-300 px-5 py-3 text-sm font-medium text-center transition-all hover:border-black cursor-pointer'>
+                                        {isUploadingAvatar ? 'ĐANG TẢI...' : 'CHỌN ẢNH'}
+                                        <input
+                                            type='file'
+                                            accept='image/*'
+                                            onChange={handleAvatarUpload}
+                                            disabled={isUploadingAvatar || isSaving}
+                                            className='hidden'
+                                        />
+                                    </label>
+                                </div>
                             </div>
 
                             <p className='text-xs text-gray-500'>
@@ -305,7 +380,7 @@ const Profile = () => {
                             <div className='flex flex-col sm:flex-row gap-3 pt-2'>
                                 <button
                                     type='submit'
-                                    disabled={isSaving || !formChanged}
+                                    disabled={isSaving || isUploadingAvatar || !formChanged}
                                     className='bg-black text-white px-8 py-3 text-sm font-medium transition-all hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300'
                                 >
                                     {isSaving ? 'ĐANG LƯU...' : 'LƯU THAY ĐỔI'}
