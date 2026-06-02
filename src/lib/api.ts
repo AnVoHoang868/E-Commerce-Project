@@ -1,4 +1,7 @@
-const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+const normalizeBaseUrl = (value?: string) => (value || '').trim().replace(/\/+$/, '');
+
+const backendUrl = normalizeBaseUrl(import.meta.env.VITE_BACKEND_URL);
+const chatbotUrl = normalizeBaseUrl(import.meta.env.VITE_CHATBOT_URL) || backendUrl;
 
 type ApiOptions = Omit<RequestInit, 'body'> & {
     token?: string;
@@ -6,6 +9,7 @@ type ApiOptions = Omit<RequestInit, 'body'> & {
 };
 
 export const apiBaseUrl = backendUrl;
+export const chatBaseUrl = chatbotUrl;
 
 export const apiRequest = async <T>(endpoint: string, options: ApiOptions = {}): Promise<T> => {
     if (!backendUrl) {
@@ -13,16 +17,19 @@ export const apiRequest = async <T>(endpoint: string, options: ApiOptions = {}):
     }
 
     const { token, headers, body, ...requestOptions } = options;
+    const isFormData = body instanceof FormData;
     const requestBody: BodyInit | undefined = body === undefined
         ? undefined
-        : typeof body === 'string'
-            ? body
-            : JSON.stringify(body);
+        : isFormData
+            ? (body as FormData)
+            : typeof body === 'string'
+                ? body
+                : JSON.stringify(body);
 
     const response = await fetch(`${backendUrl}${endpoint}`, {
         ...requestOptions,
         headers: {
-            'Content-Type': 'application/json',
+            ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...headers,
         },

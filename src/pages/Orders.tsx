@@ -70,6 +70,7 @@ const Orders = () => {
     const context = useContext(ShopContext);
     const token = context?.token;
     const navigate = context?.navigate;
+    const refreshUserProfile = context?.refreshUserProfile as (() => Promise<void>) | undefined;
     const products = (context?.products || []) as Product[];
     const [orders, setOrders] = useState<OrderListItem[]>([]);
     const [activeGroup, setActiveGroup] = useState<OrderGroup>('ALL');
@@ -297,6 +298,7 @@ const Orders = () => {
                     order.orderCode === orderCode ? { ...order, status: 'CANCELLED' } : order
                 )
             );
+            await refreshUserProfile?.();
             toast.success('Đã hủy đơn hàng');
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Không thể hủy đơn hàng';

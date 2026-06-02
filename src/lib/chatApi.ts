@@ -1,4 +1,4 @@
-import { apiBaseUrl } from './api';
+import { chatBaseUrl } from './api';
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -52,12 +52,14 @@ export const streamChatResponse = async ({
     signal,
     onToken,
 }: StreamChatOptions) => {
-    if (!apiBaseUrl) {
-        throw new Error('Missing VITE_BACKEND_URL');
+    if (!chatBaseUrl) {
+        throw new Error('Missing VITE_CHATBOT_URL or VITE_BACKEND_URL');
     }
 
+    const chatPath = (import.meta.env.VITE_CHATBOT_PATH || '/chat').trim() || '/chat';
+    const endpoint = chatPath.startsWith('/') ? chatPath : `/${chatPath}`;
     const params = new URLSearchParams({ message });
-    const response = await fetch(`${apiBaseUrl}/chat?${params.toString()}`, {
+    const response = await fetch(`${chatBaseUrl}${endpoint}?${params.toString()}`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

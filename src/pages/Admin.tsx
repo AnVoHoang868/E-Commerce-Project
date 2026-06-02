@@ -861,6 +861,52 @@ const Admin = () => {
         }
     };
 
+    const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, onSuccess: (url: string) => void) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const toastId = toast.loading('Đang tải ảnh lên...');
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('file', file);
+
+            const response = await apiRequest<any>('/v1/api/admin/upload/image', {
+                method: 'POST',
+                token,
+                body: formData,
+            });
+
+            const imageUrl =
+                response.data?.imageUrl ||
+                response.data?.url ||
+                response.data ||
+                response.imageUrl ||
+                response.url;
+
+            if (typeof imageUrl !== 'string' || !imageUrl) {
+                throw new Error('Định dạng phản hồi API upload ảnh không đúng');
+            }
+
+            onSuccess(imageUrl);
+            toast.update(toastId, {
+                render: 'Tải ảnh lên thành công',
+                type: 'success',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : 'Không thể tải ảnh lên';
+            toast.update(toastId, {
+                render: message,
+                type: 'error',
+                isLoading: false,
+                autoClose: 3000,
+            });
+        }
+    };
+
     const createProduct = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!productForm.categoryCode.trim() || !productForm.providerCode.trim() || !productForm.name.trim() || !productForm.price) {
@@ -2022,12 +2068,23 @@ const Admin = () => {
                                     min={0}
                                     placeholder='Giá bán'
                                 />
-                                <input
-                                    value={productForm.imgUrl}
-                                    onChange={(event) => setProductForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
-                                    className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                                    placeholder='URL ảnh'
-                                />
+                                <div className='flex items-center gap-2 border border-gray-300 px-4 focus-within:border-black'>
+                                    <input
+                                        value={productForm.imgUrl}
+                                        onChange={(event) => setProductForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
+                                        className='w-full text-sm outline-none py-3 bg-transparent'
+                                        placeholder='URL ảnh'
+                                    />
+                                    <label className='cursor-pointer text-xs font-semibold uppercase bg-gray-100 hover:bg-black hover:text-white px-2.5 py-1.5 transition-all text-gray-700 whitespace-nowrap shrink-0'>
+                                        Tải lên
+                                        <input
+                                            type='file'
+                                            accept='image/*'
+                                            className='hidden'
+                                            onChange={(event) => handleImageUpload(event, (url) => setProductForm((prev) => ({ ...prev, imgUrl: url })))}
+                                        />
+                                    </label>
+                                </div>
                                 <input
                                     value={productForm.sold}
                                     onChange={(event) => setProductForm((prev) => ({ ...prev, sold: event.target.value }))}
@@ -2209,12 +2266,23 @@ const Admin = () => {
                                     className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                     placeholder='Mã danh mục cha'
                                 />
-                                <input
-                                    value={categoryForm.imgUrl}
-                                    onChange={(event) => setCategoryForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
-                                    className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                                    placeholder='URL ảnh'
-                                />
+                                <div className='flex items-center gap-2 border border-gray-300 px-4 focus-within:border-black'>
+                                    <input
+                                        value={categoryForm.imgUrl}
+                                        onChange={(event) => setCategoryForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
+                                        className='w-full text-sm outline-none py-3 bg-transparent'
+                                        placeholder='URL ảnh'
+                                    />
+                                    <label className='cursor-pointer text-xs font-semibold uppercase bg-gray-100 hover:bg-black hover:text-white px-2.5 py-1.5 transition-all text-gray-700 whitespace-nowrap shrink-0'>
+                                        Tải lên
+                                        <input
+                                            type='file'
+                                            accept='image/*'
+                                            className='hidden'
+                                            onChange={(event) => handleImageUpload(event, (url) => setCategoryForm((prev) => ({ ...prev, imgUrl: url })))}
+                                        />
+                                    </label>
+                                </div>
                                 <textarea
                                     value={categoryForm.description}
                                     onChange={(event) => setCategoryForm((prev) => ({ ...prev, description: event.target.value }))}
@@ -2236,10 +2304,15 @@ const Admin = () => {
                         })}
                     </datalist>
                     <datalist id='admin-category-codes'>
-                        {categories.map((category, index) => {
-                            const code = category.categoryCode || category.code || '';
-                            return code ? <option key={`${code}-${index}`} value={code}>{category.name}</option> : null;
-                        })}
+                        {categories
+                            .filter((cat) => {
+                                const code = cat.categoryCode || cat.code || '';
+                                return ['MJK', 'MTS', 'WTS', 'SDL', 'SNK', 'HAT', 'MJN', 'WPN', 'BAG', 'WDR'].includes(code);
+                            })
+                            .map((category, index) => {
+                                const code = category.categoryCode || category.code || '';
+                                return <option key={`${code}-${index}`} value={code}>{category.name}</option>;
+                            })}
                     </datalist>
 
                     {productModal && (
@@ -2316,12 +2389,23 @@ const Admin = () => {
                                                 min={productModal === 'create-product' ? 1 : 0}
                                                 placeholder='Giá bán'
                                             />
-                                            <input
-                                                value={productForm.imgUrl}
-                                                onChange={(event) => setProductForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                                                placeholder='URL ảnh'
-                                            />
+                                            <div className='flex items-center gap-2 border border-gray-300 px-4 focus-within:border-black'>
+                                                <input
+                                                    value={productForm.imgUrl}
+                                                    onChange={(event) => setProductForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
+                                                    className='w-full text-sm outline-none py-3 bg-transparent'
+                                                    placeholder='URL ảnh'
+                                                />
+                                                <label className='cursor-pointer text-xs font-semibold uppercase bg-gray-100 hover:bg-black hover:text-white px-2.5 py-1.5 transition-all text-gray-700 whitespace-nowrap shrink-0'>
+                                                    Tải lên
+                                                    <input
+                                                        type='file'
+                                                        accept='image/*'
+                                                        className='hidden'
+                                                        onChange={(event) => handleImageUpload(event, (url) => setProductForm((prev) => ({ ...prev, imgUrl: url })))}
+                                                    />
+                                                </label>
+                                            </div>
                                             <input
                                                 value={productForm.sold}
                                                 onChange={(event) => setProductForm((prev) => ({ ...prev, sold: event.target.value }))}
@@ -2464,12 +2548,23 @@ const Admin = () => {
                                                 className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                                 placeholder='Mã danh mục cha'
                                             />
-                                            <input
-                                                value={categoryForm.imgUrl}
-                                                onChange={(event) => setCategoryForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
-                                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
-                                                placeholder='URL ảnh'
-                                            />
+                                            <div className='flex items-center gap-2 border border-gray-300 px-4 focus-within:border-black'>
+                                                <input
+                                                    value={categoryForm.imgUrl}
+                                                    onChange={(event) => setCategoryForm((prev) => ({ ...prev, imgUrl: event.target.value }))}
+                                                    className='w-full text-sm outline-none py-3 bg-transparent'
+                                                    placeholder='URL ảnh'
+                                                />
+                                                <label className='cursor-pointer text-xs font-semibold uppercase bg-gray-100 hover:bg-black hover:text-white px-2.5 py-1.5 transition-all text-gray-700 whitespace-nowrap shrink-0'>
+                                                    Tải lên
+                                                    <input
+                                                        type='file'
+                                                        accept='image/*'
+                                                        className='hidden'
+                                                        onChange={(event) => handleImageUpload(event, (url) => setCategoryForm((prev) => ({ ...prev, imgUrl: url })))}
+                                                    />
+                                                </label>
+                                            </div>
                                             <textarea
                                                 value={categoryForm.description}
                                                 onChange={(event) => setCategoryForm((prev) => ({ ...prev, description: event.target.value }))}
@@ -2554,12 +2649,23 @@ const Admin = () => {
                                 className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black'
                                 placeholder='Số điện thoại'
                             />
-                            <input
-                                value={providerForm.img}
-                                onChange={(event) => setProviderForm((prev) => ({ ...prev, img: event.target.value }))}
-                                className='border border-gray-300 px-4 py-3 text-sm outline-none focus:border-black sm:col-span-2'
-                                placeholder='URL ảnh'
-                            />
+                            <div className='flex items-center gap-2 border border-gray-300 px-4 focus-within:border-black sm:col-span-2'>
+                                <input
+                                    value={providerForm.img}
+                                    onChange={(event) => setProviderForm((prev) => ({ ...prev, img: event.target.value }))}
+                                    className='w-full text-sm outline-none py-3 bg-transparent'
+                                    placeholder='URL ảnh'
+                                />
+                                <label className='cursor-pointer text-xs font-semibold uppercase bg-gray-100 hover:bg-black hover:text-white px-2.5 py-1.5 transition-all text-gray-700 whitespace-nowrap shrink-0'>
+                                    Tải lên
+                                    <input
+                                        type='file'
+                                        accept='image/*'
+                                        className='hidden'
+                                        onChange={(event) => handleImageUpload(event, (url) => setProviderForm((prev) => ({ ...prev, img: url })))}
+                                    />
+                                </label>
+                            </div>
                             <textarea
                                 value={providerForm.description}
                                 onChange={(event) => setProviderForm((prev) => ({ ...prev, description: event.target.value }))}

@@ -118,6 +118,7 @@ const PlaceOrder = () => {
     const cartItems = (context?.cartItems || {}) as CartItems;
     const cartDetails = (context?.cartDetails || {}) as CartDetails;
     const refreshCart = context?.refreshCart as (() => Promise<void>) | undefined;
+    const refreshUserProfile = context?.refreshUserProfile as (() => Promise<void>) | undefined;
 
     const [receivers, setReceivers] = useState<Receiver[]>([]);
     const [receiverMode, setReceiverMode] = useState<ReceiverMode>('select');
@@ -537,6 +538,7 @@ const PlaceOrder = () => {
             });
 
             await refreshCart?.();
+            await refreshUserProfile?.();
             toast.success(paymentType === 'ONLINE' ? 'Đã tạo đơn hàng, vui lòng thanh toán' : 'Đặt hàng thành công');
 
             if (response.data?.paymentUrl) {

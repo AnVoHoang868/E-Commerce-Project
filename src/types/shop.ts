@@ -127,6 +127,14 @@ export type BackendCart = {
     totalAmount: number;
 };
 
+export type RankType = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond' | 'Ultimate';
+
+export type UserRank = {
+    type: RankType;
+    minTotalPurchase: number;
+    expireTime?: number | null;
+};
+
 export type UserProfile = {
     id: string;
     firstName?: string;
@@ -136,6 +144,17 @@ export type UserProfile = {
     l_name?: string;
     img?: string;
     phone?: string;
+    totalPurchase?: number;
+    rank?: UserRank;
+};
+
+export type AdminUser = {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    avatar: string | null;
+    totalPurchase: number;
+    rank: UserRank;
 };
 
 export type UserProfileUpdatePayload = {

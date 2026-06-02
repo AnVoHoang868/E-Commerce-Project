@@ -240,6 +240,12 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         }
     }
 
+    const refreshUserProfile = async () => {
+        if (token) {
+            await getUserProfile(token);
+        }
+    }
+
     const addToCart = async (itemId: string, size: string) => {
 
         if (!size) {
@@ -423,7 +429,7 @@ const ShopContextProvider = (props: { children: React.ReactNode }) => {
         search, setSearch, showSearch, setShowSearch,
         cartItems, cartDetails, addToCart,
         getCartCount, updateQuantity, removeFromCart, getCartAmount, refreshCart,
-        token, setToken, accountRole, isAdmin: accountRole === 'ADMIN', user, updateUserProfile, loadingProducts,
+        token, setToken, accountRole, isAdmin: accountRole === 'ADMIN', user, updateUserProfile, refreshUserProfile, loadingProducts,
         navigate
     }
 

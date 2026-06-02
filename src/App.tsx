@@ -15,6 +15,7 @@ import Collection from './pages/Collection';
 import TrackOrder from './pages/TrackOrder';
 import Profile from './pages/Profile';
 import Admin from './pages/Admin';
+import PaymentReturn from './pages/PaymentReturn';
 
 import Navbar from './components/Navbar';
 import SearchBar from './components/SearchBar';
@@ -37,6 +38,7 @@ const App = () => {
         <Route path='/orders' element={<Orders />} />
         <Route path='/orders/:orderCode' element={<TrackOrder />} />
         <Route path='/place-order' element={<PlaceOrder />} />
+        <Route path='/payment/vnpay/return' element={<PaymentReturn />} />
         <Route path='/product/:productId' element={<Product />} />
         <Route path='/admin' element={<Admin />} />
       </Routes>
